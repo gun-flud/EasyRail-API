@@ -1,4 +1,4 @@
-CREATE TYPE carriage_type_list AS ENUM ('CUPE', 'PLATZKART', 'LUX', 'SEAT');
+CREATE TYPE carriage_type AS ENUM ('CUPE', 'PLATZKART', 'LUX', 'SEAT');
 CREATE TYPE route_status AS ENUM ('ACTIVE', 'UNACTIVE');
 CREATE TYPE schedule_rule AS ENUM (
     'MONDAY',
@@ -17,7 +17,7 @@ CREATE TYPE train_type AS ENUM (
     'FIRM'
 );
 CREATE TYPE tier_type AS ENUM ('TOP', 'DOWN', 'SEAT');
-CREATE TYPE trip_status AS ENUM ('SCHEDULED', 'DEPARTED', 'CANCELLED', 'COMPLETED')
+CREATE TYPE trip_status AS ENUM ('SCHEDULED', 'DEPARTED', 'CANCELLED', 'COMPLETED');
 
 
 CREATE TABLE IF NOT EXISTS
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS
     trips (
         trip_id INT GENERATED ALWAYS AS IDENTITY,
         route_id INT NOT NULL,
-        departure_time DATE NOT NULL,
+        trip_date DATE NOT NULL,
         trip_status trip_status NOT NULL DEFAULT 'SCHEDULED',
         delay_minutes INT,
 
@@ -114,11 +114,11 @@ CREATE TABLE IF NOT EXISTS
         stop_id INT GENERATED ALWAYS AS IDENTITY,
         route_id INT,
         station_id INT,
-        stop_time DATE,
-        departure_time DATE,
+        stop_time TIME,
+        departure_time TIME,
         stop_order INT,
 
         PRIMARY KEY (stop_id),
         FOREIGN KEY (route_id) REFERENCES routes (route_id),
-        FOREIGN KEY (station_id) REFERENCES station (station_id)
+        FOREIGN KEY (station_id) REFERENCES stations (station_id)
     );
