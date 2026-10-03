@@ -10,6 +10,9 @@ erDiagram
     trips ||--o{ ticket_segment : "booked_on"
     users ||--o{ ticket_segment : "purchased_by"
     users ||--o{ passengers : "manages"
+    passengers ||--o{ ticket_segment : "travels_as"
+    stations ||--o{ ticket_segment : "origin"
+    stations ||--o{ ticket_segment : "destination"
 
     stations {
         uuid station_id PK
@@ -29,7 +32,7 @@ erDiagram
     routes {
         uuid route_id PK
         varchar name
-        numeric base_segment_price
+        int base_segment_price
         int number
         enum status "ACTIVE, INACTIVE"
         enum schedule_rule
@@ -63,34 +66,40 @@ erDiagram
         uuid route_id FK
         timestamptz departure_time
         enum status "SCHEDULED, DEPARTED, CANCELLED, COMPLETED"
+        int delay_minutes
     }
 
     ticket_segment {
         uuid ticket_id PK
         uuid user_id FK
+        uuid passenger_id FK 
         uuid trip_id FK
         uuid seat_id FK
         uuid carriage_id FK
+        uuid from_station_id FK
+        uuid to_station_id FK
         enum ticket_status "HELD, PAID, CANCELLED, EXPIRED"
         timestamptz cancelled_time
         varchar pdf_url
-        numeric price
+        int price
         int to_stop_order
+        timestamptz departure_time
+        timestamptz arrival_time
         timestamptz created_at
         timestamptz paid_at
         timestamptz hold_expires_at
         varchar passenger_lastname
+        varchar passenger_name
         varchar from_station_name
         varchar to_station_name
         int from_stop_order
-        varchar passenger_name
     }
 
     users {
         uuid user_id PK
         varchar name
-        varchar contacts
         varchar hashed_password
+        varchar email UK
     }
 
     passengers {
