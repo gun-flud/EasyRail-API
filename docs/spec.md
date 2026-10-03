@@ -55,6 +55,7 @@
 > 6. Відступ від 3NF дозволений лише явно для Snapshot-полів у `Ticket_segment`, які фіксують стан фінансового документа на момент покупки. Snapshot обов'язково має містити незмінні `passenger_lastname`, `passenger_name`, `from_station_name`, `to_station_name` та `price`.
 > 7. Доступність місць має моделюватися за Lazy Evaluation: не створювати фізичні записи для вільних місць; використовувати `Seat_Templates`, а запис у `Ticket_segment` створювати лише під час hold або покупки.
 > 8. Інтервальне моделювання маршруту має використовувати монотонний `stop_order` у `Stops`, а `Ticket_segment` має фіксувати `from_stop_order` і `to_stop_order`. Напрямок поїздки повинен бути валідним лише за умови `from_stop_order < to_stop_order`; конфлікт зайнятості місця визначається перетином інтервалів.
+> 9. Часові мітки departure_time, arrival_time, hold_expires_at, created_at, paid_at і cancelled_time мають мати концептуальний тип timestamp та інтерпретуватися виключно як UTC. Локалізація часу виконується лише на клієнті.
 
 
 ## 2. Сутності та їхні атрибути

@@ -21,8 +21,8 @@ erDiagram
         uuid stop_id PK
         uuid route_id FK
         uuid station_id FK
-        time stop_time
-        time departure_time
+        timestamptz stop_time
+        timestamptz departure_time
         int stop_order
     }
 
@@ -61,7 +61,7 @@ erDiagram
     trips {
         uuid trip_id PK
         uuid route_id FK
-        timestamp departure_time
+        timestamptz departure_time
         enum status "SCHEDULED, DEPARTED, CANCELLED, COMPLETED"
     }
 
@@ -72,13 +72,13 @@ erDiagram
         uuid seat_id FK
         uuid carriage_id FK
         enum status "HELD, PAID, CANCELLED, EXPIRED"
-        timestamp cancelled_time
+        timestamptz cancelled_time
         varchar pdf_url
         numeric price
         int to_stop_order
-        timestamp created_at
-        timestamp paid_at
-        timestamp hold_expires_at
+        timestamptz created_at
+        timestamptz paid_at
+        timestamptz hold_expires_at
         varchar passenger_lastname
         varchar from_station_name
         varchar to_station_name
