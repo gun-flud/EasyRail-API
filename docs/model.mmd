@@ -1,0 +1,99 @@
+erDiagram
+    stations ||--o{ stops : "has"
+    routes ||--|{ stops : "contains"
+    routes ||--o{ trips : "generates"
+    routes ||--o{ carriages : "assigned"
+    carriage_type ||--|{ seat_templates : "defines"
+    carriage_type ||--o{ carriages : "categorizes"
+    seat_templates ||--o{ ticket_segment : "reserved"
+    carriages ||--o{ ticket_segment : "placed_in"
+    trips ||--o{ ticket_segment : "booked_on"
+    users ||--o{ ticket_segment : "purchased_by"
+    users ||--o{ passengers : "manages"
+
+    stations {
+        int station_id PK
+        varchar name
+        varchar city
+    }
+
+    stops {
+        int stop_id PK
+        int route_id FK
+        int station_id FK
+        time stop_time
+        time departure_time
+        int stop_order
+    }
+
+    routes {
+        int route_id PK
+        varchar name
+        numeric base_segment_price
+        int number
+        enum status "ACTIVE, INACTIVE"
+        enum schedule_rule
+        enum train_type
+    }
+
+    carriage_type {
+        int carriage_type_id PK
+        enum type "CUPE, PLATZKART, LUX, SEAT"
+        numeric carriage_type_price_multiplier
+        int number_of_seats
+    }
+
+    seat_templates {
+        int seat_id PK
+        int carriage_type_id FK
+        int seat_number
+        boolean is_side
+        enum tier_type "TOP, DOWN, SEAT"
+    }
+
+    carriages {
+        int carriage_id PK
+        int carriage_type_id FK
+        int route_id FK
+        int number
+    }
+
+    trips {
+        int trip_id PK
+        int route_id FK
+        timestamp departure_time
+        enum status "SCHEDULED, DEPARTED, CANCELLED, COMPLETED"
+    }
+
+    ticket_segment {
+        int ticket_id PK
+        int user_id FK
+        int trip_id FK
+        int seat_id FK
+        int carriage_id FK
+        enum status "HOLD, PAID, RETURNED, EXPIRED"
+        timestamp cancelled_time
+        varchar pdf_url
+        numeric price
+        int to_stop_order
+        timestamp created_at
+        timestamp paid_at
+        timestamp hold_expires_at
+        varchar passenger_lastname
+        int from_stop_order
+        varchar passenger_name
+    }
+
+    users {
+        int user_id PK
+        varchar name
+        varchar contacts
+        varchar hashed_password
+    }
+
+    passengers {
+        int passenger_id PK
+        int user_id FK
+        varchar lastname
+        varchar name
+    }
