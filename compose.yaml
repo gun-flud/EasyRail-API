@@ -4,16 +4,16 @@ services:
         container_name: easyrail_postgres
         restart: unless-stopped
         environment:
-            POSTGRES_USER: easyrail_user
-            POSTGRES_PASSWORD: easyrail_password
-            POSTGRES_DB: easyrail_db
+            POSTGRES_USER: ${POSTGRES_USER:-easyrail_user}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-easyrail_password}
+            POSTGRES_DB: ${POSTGRES_DB:-easyrail_db}
         ports:
-            - "5432:5432"
+            - "127.0.0.1:5432:5432"
         volumes:
             - pgdata:/var/lib/postgresql/data
             - ./init-db:/docker-entrypoint-initdb.d:ro
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U easyrail_user -d easyrail_db"]
+            test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-easyrail_user} -d ${POSTGRES_DB:-easyrail_db}"]
             interval: 3s
             timeout: 5s
             retries: 5
@@ -28,12 +28,12 @@ services:
                 condition: service_healthy
         environment:
             PGADMIN_DEFAULT_EMAIL: admin@easyrail.com
-            PGADMIN_DEFAULT_PASSWORD: easyrail_password
-            PGADMIN_CONFIG_SERVER_MODE: "False"
+            PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_PASSWORD:-easyrail_password}
+            PGADMIN_CONFIG_SERVER_MODE: "True"
         volumes:
             - pgadmin_data:/var/lib/pgadmin
         ports:
-            - "5051:80"
+            - "127.0.0.1:5051:80"
         networks:
             - easyrail_network
 
@@ -52,7 +52,7 @@ services:
             NODE_ENV: development
             PORT: 8080
             HOST: 0.0.0.0
-            DATABASE_URL: postgresql://easyrail_user:easyrail_password@postgres:5432/easyrail_db
+            DATABASE_URL: postgresql://${POSTGRES_USER:-easyrail_user}:${POSTGRES_PASSWORD:-easyrail_password}@postgres:5432/${POSTGRES_DB:-easyrail_db}
             JWT_SECRET: super_secret_jwt_key_easyrail
         networks:
             - easyrail_network

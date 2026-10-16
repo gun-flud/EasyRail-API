@@ -57,16 +57,17 @@
 
 ```bash
 # 1. Клонувати репозиторій
-git clone https://github.com/your-username/EasyRail-API.git
+git clone https://github.com/gun-flud/EasyRail-API.git
 cd EasyRail-API
 
 # 2. Запустити базу даних та API
 docker compose up --build -d
 ```
 
-* **API:** `http://localhost:3000`
-* **Swagger UI:** `http://localhost:3000/docs`
-* **PostgreSQL:** `localhost:5432` (`easyrail_user` / `easyrail_pass` / `easyrail_db`)
+- **API:** `http://localhost:8080`
+- **Swagger UI:** `http://localhost:8080/docs`
+- **PostgreSQL:** `localhost:5432` (`easyrail_user` / `easyrail_password` / `easyrail_db`)
+- **pgAdmin:** `http://localhost:5050` (`admin@easyrail.com` / `easyrail_password`)
 
 ### Локальна розробка
 
