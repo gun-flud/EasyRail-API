@@ -1,0 +1,110 @@
+erDiagram
+    stations ||--o{ stops : "has"
+    routes ||--|{ stops : "contains"
+    routes ||--o{ trips : "generates"
+    routes ||--o{ carriages : "assigned"
+    carriage_type ||--|{ seat_templates : "defines"
+    carriage_type ||--o{ carriages : "categorizes"
+    seat_templates ||--o{ ticket_segment : "reserved"
+    carriages ||--o{ ticket_segment : "placed_in"
+    trips ||--o{ ticket_segment : "booked_on"
+    users ||--o{ ticket_segment : "purchased_by"
+    users ||--o{ passengers : "manages"
+    passengers ||--o{ ticket_segment : "travels_as"
+    stations ||--o{ ticket_segment : "origin"
+    stations ||--o{ ticket_segment : "destination"
+
+    stations {
+        uuid station_id PK
+        varchar name
+        varchar city
+    }
+
+    stops {
+        uuid stop_id PK
+        uuid route_id FK
+        uuid station_id FK
+        timestamptz stop_time
+        timestamptz departure_time
+        int stop_order
+    }
+
+    routes {
+        uuid route_id PK
+        varchar name
+        int base_segment_price
+        int number
+        enum status "ACTIVE, INACTIVE"
+        enum schedule_rule
+        enum train_type
+    }
+
+    carriage_type {
+        uuid carriage_type_id PK
+        enum type "CUPE, PLATZKART, LUX, SEAT"
+        numeric carriage_type_price_multiplier
+        int number_of_seats
+    }
+
+    seat_templates {
+        uuid seat_id PK
+        uuid carriage_type_id FK
+        int seat_number
+        boolean is_side
+        enum tier_type "TOP, DOWN, SEAT"
+    }
+
+    carriages {
+        uuid carriage_id PK
+        uuid carriage_type_id FK
+        uuid route_id FK
+        int number
+    }
+
+    trips {
+        uuid trip_id PK
+        uuid route_id FK
+        timestamptz departure_time
+        enum status "SCHEDULED, DEPARTED, CANCELLED, COMPLETED"
+        int delay_minutes
+    }
+
+    ticket_segment {
+        uuid ticket_id PK
+        uuid user_id FK
+        uuid passenger_id FK 
+        uuid trip_id FK
+        uuid seat_id FK
+        uuid carriage_id FK
+        uuid from_station_id FK
+        uuid to_station_id FK
+        enum ticket_status "HELD, PAID, CANCELLED, EXPIRED"
+        timestamptz cancelled_time
+        varchar pdf_url
+        int price
+        int to_stop_order
+        timestamptz departure_time
+        timestamptz arrival_time
+        timestamptz created_at
+        timestamptz paid_at
+        timestamptz hold_expires_at
+        varchar passenger_lastname
+        varchar passenger_name
+        varchar from_station_name
+        varchar to_station_name
+        int from_stop_order
+    }
+
+    users {
+        uuid user_id PK
+        varchar name
+        varchar hashed_password
+        varchar email UK
+    }
+
+    passengers {
+        uuid passenger_id PK
+        uuid user_id FK
+        varchar lastname
+        varchar name
+    }
