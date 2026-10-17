@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+# Review comments language
+language: en
+
+early_access: true
+
+chat:
+  # Automatically respond to @coderabbitai mentions in PR discussions
+  auto_reply: true
+
+reviews:
+  # Review profile: "chill" for advisory, "assertive" for strict compliance
+  profile: "chill" #"assertive"
+  
+  auto_review:
+    enabled: true
+    ignore_title_keywords:
+      - "WIP"
+      - "wip"
+    drafts: false
+    base_branches:
+      - main
+      - master
+      - dev
+      - develop
+
+  # Summary and navigation tools
+  high_level_summary: true
+  changed_files_summary: true
+  collapse_walkthrough: false
+  sequence_diagrams: true
+  poem: false
+
+  # Pre-merge checklist and status tracking
+  review_status: true
+  request_changes_workflow: false
+  pre_merge_checks:
+    description:
+      mode: warning # Ensures PRs have meaningful context
+    docstrings:
+      mode: off
+
+  # Ignored files, build artifacts, and vendor files
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/.git/**"
+    - "!pnpm-lock.yaml"
+    - "!package-lock.json"
+    - "!init-db/**"
+    - "!drizzle/**"
+    - "!**/*.lock"
+
+  # Path-specific instructions tailored to EasyRail stack
+  path_instructions:
+    # Core TypeScript Backend (Fastify, pg, Pino, Drizzle, Zod)
+    - path: "backend/src/**/*.{ts,js}"
+      instructions: |
+        Stack: Node.js 22 LTS, Fastify, TypeScript NodeNext (ESM), pg, Pino, Drizzle ORM, Zod.
+        Verify the following:
+        1. NodeNext ESM Imports:
+           - All relative file imports MUST include the `.js` extension (e.g., `import { env } from './config/env.js'`).
+           - Type-only imports MUST use `import type` to comply with `verbatimModuleSyntax`.
+        2. Request Validation:
+           - Every route handler must define and validate input using Zod schemas (`fastify-type-provider-zod`).
+           - Reject untyped access to `req.body`, `req.params`, or `req.query`.
+           - Zod schemas MUST validate external input at the route boundary before business logic executes.
+        3. Database & Transactions:
+           - Multi-step booking or ticket mutations MUST run inside `db.transaction(...)`.
+           - Drizzle queries MUST use its typed query APIs and schema definitions; never bypass them with unsafe string-built SQL.
+           - Segment overlap validation must strictly follow interval collision:
+             `Math.max(fromOrder1, fromOrder2) < Math.min(toOrder1, toOrder2)`.
+           - Preserve immutable snapshot fields in `ticket_segments` (station names, timestamps, calculated prices).
+           - PostgreSQL queries MUST use parameterized values; never interpolate user input into SQL.
+           - Clients acquired from a PostgreSQL pool MUST be released in a `finally` block.
+        4. Reliability & Error Handling:
+           - Do not swallow errors in empty `catch` blocks.
+           - Use Fastify's structured logger (`req.log` or `app.log`) instead of `console.log`.
+           - Use appropriate structured log levels and never log passwords, tokens, connection strings, or other secrets.
+           - Ensure proper HTTP status codes (400 for validation, 401 for unauthenticated, 403 for unauthorized, 404 for missing resources, 409 for booking collisions).
+        5. Performance & Scalability:
+           - Avoid blocking the Node.js event loop with synchronous I/O, CPU-heavy work, or unbounded in-memory processing.
+           - Use bounded concurrency, timeouts, and backpressure for external calls and batch operations.
+           - List endpoints MUST use validated pagination, stable ordering, and bounded page sizes; never load unbounded datasets into memory.
+           - Avoid N+1 database queries; fetch related data deliberately and select only required columns.
+           - Reuse database pools and prepared/parameterized queries; do not create a new connection per request.
+           - Add caching only where invalidation and consistency behavior are explicit; do not cache user-specific or mutable data without a clear strategy.
+           - Keep latency-sensitive request paths free of unnecessary serialization, duplicate queries, and verbose logging.
+           - Preserve request timeouts and cancellation through downstream operations where supported.
+
+    # Configuration & Environment
+    - path: "backend/src/config/**/*.{ts,js}"
+      instructions: |
+        Verify:
+        - Environment variables must be validated using Zod with fail-fast execution on application boot.
+        - No hardcoded secrets, database credentials, or default JWT secrets in production paths.
+
+    # Unit & Integration Tests (Vitest)
+    - path: "backend/**/*.{test,spec}.ts"
+      instructions: |
+        Verify:
+        - Tests use Vitest runner and assertions.
+        - Ensure test isolation: reset mocks and state before each test (`beforeEach`).
+        - Meaningful test descriptions covering edge cases (overlapping segments, invalid tokens, DB transaction rollbacks).
+
+    # Database Migrations & Schemas
+    - path: "backend/src/db/**/*.{ts,js}"
+      instructions: |
+        Verify:
+        - Foreign keys specify appropriate `onDelete` behaviors (`cascade` vs `restrict`).
+        - Composite unique constraints and check constraints (`CHECK (from_stop_order < to_stop_order)`) are properly mirrored in Drizzle schema.
+        - Frequently filtered, joined, sorted, and foreign-key columns have appropriate indexes based on query patterns.
+        - Queries select only required columns and avoid N+1 access patterns.
+        - High-volume queries use stable indexed ordering and bounded pagination.
+
+    - path: "migrations/**/*.sql"
+      instructions: |
+        Verify:
+        - Foreign keys specify appropriate `ON DELETE` behaviors (`CASCADE` vs `RESTRICT`).
+        - Composite unique constraints and check constraints (`CHECK (from_stop_order < to_stop_order)`) are defined in the migration.
