@@ -1,0 +1,56 @@
+graph LR
+    subgraph HumanActors ["Людські актори"]
+        Guest["Гість (Guest)"]
+        User["Зареєстрований користувач"]
+        Dispatcher["Диспетчер розкладу"]
+        Conductor["Провідник"]
+        Guest -.->|Generalization| User
+    end
+    subgraph SystemScope ["EasyRail Core API Scope"]
+        UC_Search["UC-01: Пошук рейсів та місць"]
+        UC_DelayAlert["UC-02: Попередження про затримку"]
+        UC_ShowSoldOut["UC-03: Показ розпроданих рейсів"]
+        UC_HoldSeat["UC-04: Забронювати холд місця (10 хв)"]
+        UC_CheckIntervals["UC-05: Перевірка перетину інтервалів"]
+        UC_CheckSingleHold["UC-06: Перевірка ліміту 1 холда"]
+        UC_PayTicket["UC-07: Оплатити квиток"]
+        UC_PayCard["UC-08: Оплата банківською карткою"]
+        UC_PayWallet["UC-09: Оплата Apple/Google Pay"]
+        UC_Snapshot["UC-10: Фіксація зліпка (Snapshot)"]
+        UC_SaveCompanion["UC-11: Збереження попутника"]
+        UC_GenPDF["UC-12: Генерація PDF-квитка"]
+        UC_RefundTicket["UC-13: Повернути квиток"]
+        UC_CheckRefundTime["UC-14: Перевірка дедлайну >= 2 год"]
+        UC_CleanExpiredHold["UC-15: Очищення холда (SKIP LOCKED)"]
+        UC_ManageSchedule["UC-16: Керування розкладом"]
+        UC_UpdateDelay["UC-17: Оновлення затримки рейсу"]
+        UC_ValidateTicket["UC-18: Валідація квитка посадки"]
+        UC_Fiscal["UC-19: Фіскалізація чека (ПРРО) [Uncovered]"]
+    end
+        subgraph ExternalActors ["Зовнішні та системні актори"]
+        PaymentGW["Платіжний шлюз (LiqPay/Mono)"]
+        NotifService["Сервіс сповіщень"]
+        Worker["Фоновий воркер"]
+    end
+    Guest --> UC_Search
+    UC_DelayAlert -.->|"<<extend>>"| UC_Search
+    UC_ShowSoldOut -.->|"<<extend>>"| UC_Search
+    User --> UC_HoldSeat
+    UC_HoldSeat -.->|"<<include>>"| UC_CheckIntervals
+    UC_HoldSeat -.->|"<<include>>"| UC_CheckSingleHold
+    User --> UC_PayTicket
+    UC_PayCard -.->|Generalization| UC_PayTicket
+    UC_PayWallet -.->|Generalization| UC_PayTicket
+    UC_PayTicket -.->|"<<include>>"| UC_Snapshot
+    UC_PayTicket -.->|"<<include>>"| UC_GenPDF
+    UC_SaveCompanion -.->|"<<extend>>"| UC_PayTicket
+    User --> UC_RefundTicket
+    UC_RefundTicket -.->|"<<include>>"| UC_CheckRefundTime
+    Dispatcher --> UC_ManageSchedule
+    Dispatcher --> UC_UpdateDelay
+    Conductor --> UC_ValidateTicket
+    UC_PayTicket <--> PaymentGW
+    UC_RefundTicket --> PaymentGW
+    UC_GenPDF --> NotifService
+    UC_RefundTicket --> NotifService
+    Worker --> UC_CleanExpiredHold
