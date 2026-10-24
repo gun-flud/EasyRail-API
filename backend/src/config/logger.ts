@@ -1,5 +1,5 @@
 import type { FastifyServerOptions } from 'fastify';
-import { env } from '@/config/env.js';
+import { env } from './env.js';
 
 export function loggerOptions(): FastifyServerOptions['logger'] {
 	if (env.NODE_ENV === 'development') {

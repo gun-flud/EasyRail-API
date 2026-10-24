@@ -1,13 +1,13 @@
-import Fastify, { type FastifyServerOptions } from "fastify";
+import Fastify, { type FastifyServerOptions } from 'fastify';
 
 export default function buildApp(options: { logger?: FastifyServerOptions['logger'] } = {}) {
-    const app = Fastify({
-        logger: options.logger ?? false
-    });
+	const app = Fastify({
+		logger: options.logger ?? false,
+	});
 
-    app.get("/health", (request, reply) => {
-        return {status: "ok"}
-    });
+	app.get('/health', () => {
+		return { status: 'ok' };
+	});
 
-    return app;
+	return app;
 }
