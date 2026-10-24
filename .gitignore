@@ -21,6 +21,8 @@ npm-debug.log*
 
 # Coverage & Tests
 coverage/
+.vitest/
+
 
 # Caches
 .cache/
