@@ -2,7 +2,7 @@
 
 > **Статус документа:** Canonical / Approved Architecture  
 > **Період реалізації:** 21 вересня — кінець грудня (14 навчальних тижнів, 7 фаз по 2 тижні)  
-> **Стек:** Node.js 22 LTS, TypeScript 5 (Strict), Fastify 5 + Zod Type Provider, PostgreSQL 16 Alpine, Drizzle ORM (`pg.Pool`), Vitest, Docker Compose, GitHub Actions + GHCR, CodeRabbit AI.
+> **Стек:** Node.js 22 LTS, TypeScript 5 (Strict), Fastify 5 + Zod Type Provider, PostgreSQL 16 Alpine, planned Drizzle ORM (`pg.Pool`), Vitest, Docker Compose, GitHub Actions + GHCR, CodeRabbit AI. Drizzle ORM, Drizzle Kit, `fastify-type-provider-zod`, `@fastify/jwt` and `argon2` are future dependencies until they are added to `backend/package.json`; the documented implementation must not be treated as reproducible from the current manifest before then.
 
 ---
 
@@ -41,7 +41,7 @@
   * `test(concurrency): add race condition simulation`
 * **Перевірка перед комітом:** перед кожним комітом у каталозі `backend` обов'язково запустіть форматування та автоматичне виправлення lint-помилок:
   ```bash
-  pnpm format; pnpm lint:fix
+  pnpm --dir backend format; pnpm --dir backend lint:fix
   ```
   Після цього перегляньте внесені автоматичні зміни й лише тоді створюйте коміт.
 * **Обов'язковий Definition of Done (DoD) для вливання PR:**
@@ -74,7 +74,7 @@
   Вимога: Спочатку дай короткий план і поясни підхід, а потім пиши типізований код.
   ```
 * **Принцип розуміння:** Будь-який рядок коду чи SQL, який ви не можете самостійно пояснити викладачу біля дошки/екрана, **не має права потрапити в PR**.
-* **Перевірка SQL:** Кожен згенерований запит обов'язково тестується вручну в DBeaver через `EXPLAIN (ANALYZE, BUFFERS)` на живих даних.
+* **Перевірка SQL:** Кожен згенерований запит спочатку перевіряється в одноразовій staging-базі. Для `SELECT` використовуйте `EXPLAIN (ANALYZE, BUFFERS)` там; для `INSERT`, `UPDATE`, `DELETE` та cleanup-запитів використовуйте звичайний `EXPLAIN`, якщо виконання не ізольовано та явно безпечне. Не запускайте мутації через `EXPLAIN ANALYZE` на live-даних.
 * **Взаємний крос-чек:** Перед кожною здачею лаби кожен учасник команди повинен вміти пояснити 2 випадкові завдання своїх колег.
 
 ### 2.4. Фундаментальні архітектурні заповіді EasyRail
@@ -127,15 +127,15 @@
 >  * *Коміт:* `feat(infra): setup postgres 16 alpine docker container with healthcheck`
 >  * *Інструменти:* Docker Compose, Docker CLI.
 >  * *Перевірка:* `docker compose up -d` запускає контейнер у стані `healthy`.
-* **Крок 1.2:** Створити Fail-Fast валідацію середовища `src/config/env.ts` через Zod >(`DATABASE_URL`, `PORT`, `NODE_ENV`, `JWT_SECRET`).
+* **Крок 1.2:** Створити Fail-Fast валідацію середовища `backend/src/config/env.ts` через Zod (`DATABASE_URL`, `PORT`, `NODE_ENV`, `JWT_SECRET`).
   * *Коміт:* `feat(config): add fail-fast environment schema validation with zod`
   * *Інструменти:* Zod, `dotenv`.
   * *Перевірка:* Видалення `.env` призводить до негайної зупинки процесу з помилкою валідації.
-* **Крок 1.3:** Ініціалізувати Drizzle ORM у `src/db/index.ts` через пул з'єднань `pg.Pool` та налаштувати `drizzle.config.ts`.
+* **Крок 1.3:** Ініціалізувати Drizzle ORM у `backend/src/db/index.ts` через пул з'єднань `pg.Pool` та налаштувати `backend/drizzle.config.ts`.
   * *Коміт:* `feat(db): configure pg pool connection and drizzle config`
   * *Інструменти:* `pg.Pool`, `drizzle-orm/node-postgres`, `drizzle-kit`.
   * *Перевірка:* Успішне тестове з'єднання з БД через клієнт.
-* **Крок 1.4:** Описати в `src/db/schema.ts` таблиці ядра: `users`, `trips`, `ticket_segments` із системним констрейнтом:
+* **Крок 1.4:** Описати в `backend/src/db/schema.ts` таблиці ядра: `users`, `trips`, `ticket_segments` із системним констрейнтом:
   $$\text{CHECK (from\_stop\_order < to\_stop\_order)}$$
   та налаштувати генерацію UUID через системне розширення `gen_random_uuid()`.
   * *Коміт:* `feat(schema): define core tables with check constraint for stop order`
@@ -144,7 +144,7 @@
 * **Артефакт на захист Лаби №1:** Контейнер БД, пул Drizzle, `CHECK`-обмеження ядра, генерація UUID через `gen_random_uuid()`.
 
 #### 2. Дмитро Пеньківський — Гілка: `feat/schema-logistics`
-* **Крок 1.1:** Описати логістичні ENUM-типи в `src/db/schema.ts`: `train_type` (`INTERCITY`, `NIGHT_EXPRESS`), `carriage_type_enum` (`COUPE`, `PLATZKART`), `tier_type` (`TOP`, `BOTTOM`).
+* **Крок 1.1:** Описати логістичні ENUM-типи в `backend/src/db/schema.ts`: `train_type` (`INTERCITY`, `NIGHT_EXPRESS`), `carriage_type_enum` (`COUPE`, `PLATZKART`), `tier_type` (`TOP`, `BOTTOM`).
   * *Коміт:* `feat(schema): declare logistics enums for trains and carriages`
   * *Інструменти:* `pgEnum` у Drizzle Kit.
   * *Перевірка:* ENUM-типи відображаються у системному каталозі Postgres (`\dT` у DBeaver).
@@ -159,7 +159,7 @@
 * **Крок 1.4:** Описати сутності рухомого складу: `trains`, `carriages`, `seat_templates` (нумерація місць 1..54, поверх, тип полиці) із зовнішніми ключами.
   * *Коміт:* `feat(schema): define trains, carriages and seat layout templates`
   * *Інструменти:* Drizzle schema builder.
-  * *Перевірка:* Успішна кодогенерація типів Drizzle через `pnpm drizzle-kit generate` без помилок.
+  * *Перевірка:* Успішна кодогенерація типів Drizzle через `pnpm --dir backend exec drizzle-kit generate` без помилок.
 * **Артефакт на захист Лаби №1:** Логістична топологія мережі, $M:N$ таблиця `stops`, композитна унікальність зупинок, констрейнти `ON DELETE RESTRICT`.
 
 #### 3. Мохаммад Хашим — Гілка: `feat/schema-finance-audit`
@@ -192,7 +192,7 @@
 * **Крок 2.1:** Створити Fastify-інстанс з інтеграцією `fastify-type-provider-zod` та кольоровим структурованим логером Pino (`pino-pretty`).
   * *Коміт:* `feat(server): setup fastify app with zod type provider and pino`
   * *Інструменти:* Fastify 5, `fastify-type-provider-zod`, `pino`, `pino-pretty`.
-  * *Перевірка:* `pnpm run dev` запускає сервер, логи читабельні та інформативні.
+  * *Перевірка:* `pnpm --dir backend run dev` запускає сервер, логи читабельні та інформативні.
 * **Крок 2.2:** Підключити `@fastify/swagger` та `@fastify/swagger-ui` за маршрутом `/docs`.
   * *Коміт:* `feat(docs): register fastify openapi swagger and swagger-ui on /docs`
   * *Інструменти:* `@fastify/swagger`, `@fastify/swagger-ui`.
@@ -201,17 +201,17 @@
   * *Коміт:* `feat(health): add db readiness and liveness check endpoint`
   * *Інструменти:* Fastify route, Drizzle `sql` execute.
   * *Перевірка:* Повертає `200 OK` при живій базі та `503 Service Unavailable` при зупиненому контейнері.
-* **Крок 2.4:** Реалізувати безпечну автентифікацію ядра: хешування паролів алгоритмом `Argon2id`, видача токенів через `@fastify/jwt`, ендпоінти `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`. Реалізувати DML-патерн `ON CONFLICT (email) DO UPDATE` для оновлення останнього входу користувача (`last_login_at`).
+* **Крок 2.4:** Реалізувати безпечну автентифікацію ядра: хешування паролів алгоритмом `Argon2id`, видача токенів через `@fastify/jwt`, ендпоінти `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`. Реєстрація для вже наявного email повинна повертати `409 Conflict`. Після успішної автентифікації логін має виконувати DML-патерн `ON CONFLICT (email) DO UPDATE` для оновлення `last_login_at`.
   * *Коміт:* `feat(auth): implement argon2id hashing, jwt tokens, and upsert pattern`
   * *Інструменти:* `argon2`, `@fastify/jwt`, Drizzle `onConflictDoUpdate`.
-  * *Перевірка:* Пароль у базі збережено як довгий хеш `$argon2id$...`. Повторна реєстрація на той самий email відхиляється.
+  * *Перевірка:* Пароль у базі збережено як довгий хеш `$argon2id$...`. Повторна реєстрація на той самий email повертає `409 Conflict`, а успішний логін оновлює `last_login_at`.
 * **Артефакт на захист Лаби №2:** SQL-запити вставки користувача, демонстрація захешованого пароля в Postgres, DML Upsert-патерн `ON CONFLICT DO UPDATE`.
 
 #### 2. Дмитро Пеньківський — Гілка: `feat/seed-data-stations-crud`
-* **Крок 2.1:** Написати масив міст у `src/db/seed.ts` (Київ, Вінниця, Хмельницький, Тернопіль, Львів, Одеса, Дніпро) та пакетну вставку `db.insert(stations).values(...)`.
+* **Крок 2.1:** Написати масив міст у `backend/src/db/seed.ts` (Київ, Вінниця, Хмельницький, Тернопіль, Львів, Одеса, Дніпро) та пакетну вставку `db.insert(stations).values(...)`.
   * *Коміт:* `feat(seed): add ukrainian railway stations dataset`
   * *Інструменти:* Drizzle batch insert API, TypeScript.
-  * *Перевірка:* Запуск `pnpm run db:seed` створює 7 реальних станцій без помилок.
+  * *Перевірка:* Запуск `pnpm --dir backend run db:seed` створює 7 реальних станцій без помилок.
 * **Крок 2.2:** Додати в сід два ключові маршрути: №705 «Київ — Львів» (проміжні: Вінниця, Хмельницький, Тернопіль) та №105 «Київ — Одеса».
   * *Коміт:* `feat(seed): seed realistic routes and stop sequences`
   * *Інструменти:* Drizzle transactions у сідах.
@@ -224,10 +224,10 @@
   * *Коміт:* `feat(stations): implement stations read and create crud endpoints`
   * *Інструменти:* Fastify controller, Zod schema validation.
   * *Перевірка:* Успішний виклик роутів через інтерактивний Swagger UI.
-* **Артефакт на захист Лаби №2:** Скрипт масового сідування `pnpm run db:seed`, пакетна вставка (Batch Insert), базовий CRUD станцій.
+* **Артефакт на захист Лаби №2:** Скрипт масового сідування `pnpm --dir backend run db:seed`, пакетна вставка (Batch Insert), базовий CRUD станцій.
 
 #### 3. Мохаммад Хашим — Гілка: `feat/passengers-dml-lab2`
-* **Крок 2.1:** Створити Zod-схеми для додавання попутника (`first_name`, `last_name`, `document_id`) у `src/modules/passengers/passengers.schemas.ts`.
+* **Крок 2.1:** Створити Zod-схеми для додавання попутника (`first_name`, `last_name`, `document_id`) у `backend/src/modules/passengers/passengers.schemas.ts`.
   * *Коміт:* `feat(passengers): declare zod schemas for passenger input validation`
   * *Інструменти:* Zod schema definitions (`min(2)`, `max(50)`).
   * *Перевірка:* Запит з коротким ім'ям (< 2 символів) повертає помилку 400 з детальним описом валідації.
@@ -321,7 +321,7 @@
   * *Коміт:* `feat(analytics): write 5-table join query for master trip overview`
   * *Інструменти:* 5-table `INNER JOIN` у SQL.
   * *Перевірка:* Дані узгоджені, всі зовнішні ключі сходяться без втрати рядків.
-* **Крок 3.4:** Зберегти розроблені запити у файл `src/db/queries/lab3_analytics.sql` з поясненнями для комісії.
+* **Крок 3.4:** Зберегти розроблені запити у файл `backend/src/db/queries/lab3_analytics.sql` з поясненнями для комісії.
   * *Коміт:* `docs(lab3): document analytical queries with comments for lab defense`
   * *Інструменти:* SQL-файл із документацією.
   * *Перевірка:* Файл готовий до здачі Лаби №3.
@@ -335,19 +335,19 @@
 * **Спільний результат:** 100% покрите тестами чисто-функціональне ядро бронювання, 10-хвилинне утримання (HELD), створені B-Tree, часткові, композитні та функціональні індекси.
 
 #### 1. Владислав Іванников (`@gun-flud`) — Гілка: `feat/pure-booking-domain-seats`
-* **Крок 4.1:** Створити файл чистого доменного ядра `src/modules/booking/booking.domain.ts` та реалізувати чисту функцію перевірки накладання інтервалів:
+* **Крок 4.1:** Створити файл чистого доменного ядра `backend/src/modules/booking/booking.domain.ts` та реалізувати чисту функцію перевірки накладання інтервалів:
   $$\text{doIntervalsOverlap}(A, B) = \max(A_{\text{from}}, B_{\text{from}}) < \min(A_{\text{to}}, B_{\text{to}})$$
   * *Коміт:* `feat(booking): implement pure interval overlap algorithm in domain layer`
   * *Інструменти:* Pure TypeScript (Functional Core).
   * *Перевірка:* Функція детермінована, не має жодних зовнішніх залежностей чи звернень до бази.
-* **Крок 4.2:** Покрити алгоритм повним набором юніт-тестів Vitest (`src/modules/booking/booking.domain.test.ts`):
+* **Крок 4.2:** Покрити алгоритм повним набором юніт-тестів Vitest (`backend/src/modules/booking/booking.domain.test.ts`):
   * Суміжні станції $[1, 3]$ та $[3, 5]$ $\to$ `false` (дозволено).
   * Частковий перетин $[1, 4]$ та $[2, 5]$ $\to$ `true` (конфлікт).
   * Повне вкладення $[1, 8]$ та $[3, 5]$ $\to$ `true` (конфлікт).
   * Невалідний інтервал ($from \ge to$) $\to$ викидання бізнес-помилки.
   * *Коміт:* `test(booking): cover interval overlap algorithm with comprehensive vitest suite`
   * *Інструменти:* Vitest runner.
-  * *Перевірка:* `pnpm test` проходить за < 150 мс, 100% зелених тестів.
+  * *Перевірка:* `pnpm --dir backend test` проходить за < 150 мс, 100% зелених тестів.
 * **Крок 4.3:** Реалізувати ендпоінт карти зайнятості місць вагона `GET /api/trips/:tripId/seats?fromStationId=...&toStationId=...`.
   * *Коміт:* `feat(booking): implement carriage seat occupancy map endpoint`
   * *Інструменти:* Fastify controller, Drizzle queries.
@@ -372,18 +372,18 @@
   * *Коміт:* `feat(booking): validate single active hold limitation per authorized user`
   * *Інструменти:* Fastify service logic.
   * *Перевірка:* Спроба зробити другий холд під час дії першого повертає `409 Conflict`.
-* **Крок 4.3:** Реалізувати ендпоінт 10-хвилинного резерву: `POST /api/tickets/hold`. Фіксувати `hold_expires_at = NOW() + INTERVAL '10 minutes'`.
+* **Крок 4.3:** Реалізувати ендпоінт 10-хвилинного резерву: `POST /api/tickets/hold`. Перевірку кількості активних холдів, перевірку накладання інтервалу та вставку холду виконувати в одній транзакції. Конфліктні холди мають блокуватися та відхилятися на рівні бази даних, а `hold_expires_at` фіксувати як `NOW() + INTERVAL '10 minutes'`.
   * *Коміт:* `feat(booking): implement 10-minute hold reservation endpoint`
   * *Інструменти:* Fastify controller, Drizzle insert.
   * *Перевірка:* У базі з'являється рядок зі статусом `HELD` та часом життя рівно 10 хвилин.
-* **Крок 4.4:** Створити B-Tree індекси на зовнішні ключі логістичних таблиць (`stops.route_id`, `carriages.train_id`) для запобігання блокуванню таблиць під час каскадних операцій, а також функціональний індекс пошуку станцій без урахування регістру:
+* **Крок 4.4:** Створити B-Tree індекси на зовнішні ключі логістичних таблиць (`stops.route_id`, `carriages.train_id`), щоб прискорити пошук рядків, які посилаються на батьківські записи, під час перевірок зовнішніх ключів і каскадних операцій. Вони не запобігають і не усувають блокування таблиць. Також створити функціональний індекс пошуку станцій без урахування регістру:
   ```sql
   CREATE INDEX idx_stations_name_lower ON stations(LOWER(name));
   ```
   * *Коміт:* `feat(db): index foreign keys across logistics entities and add case-insensitive station search index`
   * *Інструменти:* Drizzle schema index creation, DBeaver `\d stops`.
   * *Перевірка:* Перевірка наявності індексів через DBeaver.
-* **Артефакт на захист Лаби №4:** Ендпоінт резервування місця, B-Tree індексація зовнішніх ключів для зняття Table Locks, функціональний індекс `LOWER(stations.name)`.
+* **Артефакт на захист Лаби №4:** Ендпоінт резервування місця, B-Tree індексація зовнішніх ключів для прискорення перевірок зовнішніх ключів і каскадних операцій, функціональний індекс `LOWER(stations.name)`.
 
 #### 3. Мохаммад Хашим — Гілка: `feat/lab4-b-tree-indexes`
 * **Крок 4.1:** Створити частковий індекс (Partial Index), що індексує виключно активні холди:
@@ -429,12 +429,18 @@
   * *Коміт:* `feat(checkout): open strict acid transaction wrapper for ticket payment`
   * *Інструменти:* Drizzle ORM transactions.
   * *Перевірка:* Помилка всередині транзакції призводить до повного відкату (Rollback).
-* **Крок 5.2:** Застосувати песимістичне блокування рядка для захисту від паралельних покупок:
+* **Крок 5.2:** Застосувати песимістичне блокування всіх потенційно конфліктних рядків для захисту від паралельних покупок:
   ```sql
   SELECT * FROM ticket_segments 
-  WHERE ticket_id = :id AND status = 'HELD' 
+  WHERE trip_id = :trip_id
+    AND carriage_id = :carriage_id
+    AND seat_id = :seat_id
+    AND status = 'HELD'
+    AND from_stop_order < :to_stop_order
+    AND to_stop_order > :from_stop_order
   FOR UPDATE;
   ```
+  Усередині тієї самої транзакції повторно перевірити накладання інтервалів і переконатися, що заблокований рядок належить поточному `ticket_id`; конфлікт з іншим холдом має завершуватися `409 Conflict`. Тест конкурентності повинен використовувати два різні холди на те саме місце з перекривними сегментами.
   * *Коміт:* `feat(checkout): apply pessimistic row locking with select for update`
   * *Інструменти:* Drizzle `.for('update')`.
   * *Перевірка:* Транзакція в одній сесії DBeaver блокує паралельне редагування рядка іншою сесією.
@@ -496,19 +502,24 @@
 * **Спільний результат:** Конкурентний фоновий воркер очищення на патерні `SKIP LOCKED`, диспетчерські затримки поїздів, згенерований стрес-датасет на 10k+ записів, оптимізація запитів за допомогою `EXPLAIN (ANALYZE, BUFFERS)` та тюнінг пам'яті.
 
 #### 1. Владислав Іванников (`@gun-flud`) — Гілка: `feat/cleanup-worker-delays`
-* **Крок 6.1:** Створити автономний інтервальний процес `src/modules/workers/cleanup.worker.ts`, що спрацьовує раз на 60 секунд.
+* **Крок 6.1:** Створити автономний інтервальний процес `backend/src/modules/workers/cleanup.worker.ts`, що спрацьовує раз на 60 секунд.
   * *Коміт:* `feat(worker): setup interval background runner for expired holds`
   * *Інструменти:* Node.js timer loop, structured Pino logger.
   * *Перевірка:* Воркер циклічно стартує та пише структуровані логи.
-* **Крок 6.2:** Написати неблокуюче очищення прострочених замовлень за допомогою `FOR UPDATE SKIP LOCKED`:
+* **Крок 6.2:** Написати неблокуюче очищення прострочених сегментів за допомогою `FOR UPDATE SKIP LOCKED`:
   ```sql
-  UPDATE ticket_segments
-  SET status = 'EXPIRED'
-  WHERE ticket_id IN (
-    SELECT ticket_id FROM ticket_segments
+  WITH expired AS (
+    SELECT segment_id
+    FROM ticket_segments
     WHERE status = 'HELD' AND hold_expires_at < NOW()
     FOR UPDATE SKIP LOCKED
-  );
+  )
+  UPDATE ticket_segments AS ts
+  SET status = 'EXPIRED'
+  FROM expired
+  WHERE ts.segment_id = expired.segment_id
+    AND ts.status = 'HELD'
+    AND ts.hold_expires_at < NOW();
   ```
   * *Коміт:* `feat(worker): implement skip locked pattern for non-blocking hold expiration`
   * *Інструменти:* Drizzle raw SQL transaction / subquery.
@@ -517,21 +528,21 @@
   ```sql
   CREATE INDEX idx_trips_covering ON trips (route_id, departure_time) INCLUDE (base_price, status);
   ```
-  Профілювати в DBeaver та підтвердити метрику `Heap Fetches: 0`.
+  Профілювати в DBeaver та зафіксувати `Heap Fetches: 0` лише як спостережуваний результат для конкретного плану після відповідного обслуговування таблиці. `INCLUDE` не гарантує нульових звернень до heap: якщо біти visibility map не встановлені, PostgreSQL все одно може читати heap-сторінки.
   * *Коміт:* `perf(db): create covering index with include for pure index only scan`
   * *Інструменти:* PostgreSQL Covering Index (`INCLUDE`), DBeaver EXPLAIN GUI.
-  * *Перевірка:* У плані `EXPLAIN` відображається `Index Only Scan`, доступ до Heap таблиці дорівнює нулю.
+  * *Перевірка:* У плані `EXPLAIN` відображається `Index Only Scan`; нульові `Heap Fetches` заявляються лише після підтвердження в конкретному плані та виконання потрібного обслуговування (наприклад, `VACUUM`).
 * **Крок 6.4:** Продемонструвати тюнінг пам'яті сортування (`work_mem`): усунути скидання сортування на диск `Sort Method: external merge Disk` $\to$ `quicksort Memory` на стрес-масиві. Проаналізувати ноду блокування `LockRows` у плані виконання воркера.
   * *Коміт:* `perf(db): optimize sort operations via work_mem and profile lockrows node`
   * *Інструменти:* PostgreSQL `SET work_mem`, EXPLAIN execution graph.
   * *Перевірка:* Сортування виконується повністю в оперативній пам'яті за лічені мілісекунди.
-* **Артефакт на захист Лаби №6:** Воркер `SKIP LOCKED`, покриваючий індекс з `INCLUDE` (`Index Only Scan`, `Heap Fetches: 0`), оптимізація `work_mem` (Disk $\to$ Memory), аналіз ноди `LockRows`.
+* **Артефакт на захист Лаби №6:** Воркер `SKIP LOCKED`, покриваючий індекс з `INCLUDE` (`Index Only Scan`; `Heap Fetches: 0` — лише підтверджений результат конкретного плану після обслуговування), оптимізація `work_mem` (Disk $\to$ Memory), аналіз ноди `LockRows`.
 
 #### 2. Дмитро Пеньківський — Гілка: `feat/stress-data-generator`
-* **Крок 6.1:** Створити скрипт генератора навантажувальних даних `src/db/generate_stress_data.ts`.
+* **Крок 6.1:** Створити скрипт генератора навантажувальних даних `backend/src/db/generate_stress_data.ts`.
   * *Коміт:* `feat(stress): bootstrap stress dataset generator script`
   * *Інструменти:* `tsx`, Drizzle Client, `crypto`.
-  * *Перевірка:* Скрипт запускається через `pnpm tsx src/db/generate_stress_data.ts`.
+  * *Перевірка:* Скрипт запускається через `pnpm --dir backend exec tsx src/db/generate_stress_data.ts`.
 * **Крок 6.2:** Згенерувати 5 000+ випадкових пасажирів пакетними порціями по 500 записів.
   * *Коміт:* `feat(stress): generate 5000 realistic passengers using batch chunks`
   * *Інструменти:* Drizzle Batch Insert.
@@ -611,7 +622,7 @@
   * *Коміт:* `test(postman): complete payment, boarding check, and refund test suite`
   * *Інструменти:* Postman Tests scripts.
   * *Перевірка:* Автотести перевіряють статус-коди та тіло відповідей.
-* **Крок 7.4:** Експортувати колекцію у `tests/EasyRail_E2E.postman_collection.json`.
+* **Крок 7.4:** Експортувати колекцію у `backend/tests/EasyRail_E2E.postman_collection.json`.
   * *Коміт:* `test(postman): export complete automated e2e collection for grading`
   * *Інструменти:* Postman Export.
   * *Перевірка:* Колекція запускається в 1 клік через Postman Collection Runner.
@@ -645,12 +656,12 @@
 
 | Лабораторна | Що відкриває і пояснює Владислав (`@gun-flud`) | Що відкриває і пояснює Мохаммад Хашим | Що відкриває і пояснює Дмитро Пеньківський |
 | :--- | :--- | :--- | :--- |
-| **Лаба 1: DDL & Схема** | DBeaver: таблиці ядра (`users`, `trips`, `ticket_segments`), системний констрейнт `CHECK (from_order < to_order)`, роботу `gen_random_uuid()`. | DBeaver: схему повернень `refunds`, зв'язки попутників `passengers` з правилом `ON DELETE CASCADE`, таблицю `system_logs`. | DBeaver: логістичну мережу, проміжну таблицю $M:N$ `stops` із композитною унікальністю, правила `ON DELETE RESTRICT` для захисту міст від видалення. |
-| **Лаба 2: DML & CRUD** | Swagger `/docs`: реєстрацію юзера з хешуванням Argon2id. DBeaver: наявність захешованого пароля, патерн `ON CONFLICT DO UPDATE`. | DBeaver: виконання скрипта `lab2_dml_operations.sql` з предикатами `LIKE`, `IN`, `BETWEEN` та пакетною вставкою пасажирів. | Термінал: запуск скрипта сідування `pnpm run db:seed`. Swagger: вибірку списку станцій `GET /api/stations` та створення станції. |
+| **Лаба 1: DDL & Схема** | DBeaver: таблиці ядра (`users`, `trips`, `ticket_segments`), системний констрейнт `CHECK (from_stop_order < to_stop_order)`, роботу `gen_random_uuid()`. | DBeaver: схему повернень `refunds`, зв'язки попутників `passengers` з правилом `ON DELETE CASCADE`, таблицю `system_logs`. | DBeaver: логістичну мережу, проміжну таблицю $M:N$ `stops` із композитною унікальністю, правила `ON DELETE RESTRICT` для захисту міст від видалення. |
+| **Лаба 2: DML & CRUD** | Swagger `/docs`: реєстрацію юзера з хешуванням Argon2id. DBeaver: наявність захешованого пароля, патерн `ON CONFLICT DO UPDATE`. | DBeaver: виконання скрипта `docs/lab2_dml_operations.sql` з предикатами `LIKE`, `IN`, `BETWEEN` та пакетною вставкою пасажирів. | Термінал: запуск скрипта сідування `pnpm --dir backend run db:seed`. Swagger: вибірку списку станцій `GET /api/stations` та створення станції. |
 | **Лаба 3: Складний SQL** | Swagger / DBeaver: пошуковий SQL-запит із двома `JOIN` до `stops`, фільтрацію напрямку $s_{\text{from}} < s_{\text{to}}$ та CTE динамічної ціни. | DBeaver: виконання віконних функцій `DENSE_RANK() OVER (PARTITION BY ...)` та агрегації з фільтром груп `HAVING COUNT(*) > 5`. | Swagger: роут розкладу `GET /api/trips/:id/schedule` з сортуванням `ORDER BY stop_order` та розрахунком часу стоянки через `INTERVAL`. |
-| **Лаба 4: Індексація** | Термінал: запуск `pnpm test` (зелені юніт-тести Vitest алгоритму перетинів). DBeaver: композитний B-Tree індекс ядра `idx_tickets_conflict` та функціональний індекс `LOWER(email)`. | DBeaver: частковий індекс `WHERE status = 'HELD'`, запит до системної статистики `pg_stat_user_indexes` (ріст лічильника `idx_scan`). | DBeaver: B-Tree індекси зовнішніх ключів (`stops.route_id`, `carriages.train_id`) для усунення Table Locks та регістронезалежний індекс `LOWER(stations.name)`. |
+| **Лаба 4: Індексація** | Термінал: запуск `pnpm --dir backend test` (зелені юніт-тести Vitest алгоритму перетинів). DBeaver: композитний B-Tree індекс ядра `idx_tickets_conflict` та функціональний індекс `LOWER(email)`. | DBeaver: частковий індекс `WHERE status = 'HELD'`, запит до системної статистики `pg_stat_user_indexes` (ріст лічильника `idx_scan`). | DBeaver: B-Tree індекси зовнішніх ключів (`stops.route_id`, `carriages.train_id`) для прискорення перевірок зовнішніх ключів і каскадних операцій та регістронезалежний індекс `LOWER(stations.name)`. |
 | **Лаба 5: ACID & Блокування** | DBeaver (2 сесії): паралельне виконання транзакцій із блокуванням рядка `SELECT ... FOR UPDATE`, обробку дедлоків. Vitest: concurrency-тест. | DBeaver (2 сесії): демонстрацію аномалій рівнів ізоляції (`Read Committed` проти `Repeatable Read`). Swagger: відхилення повернення за правилом 2 годин. | DBeaver: збережений рядок квитка з незмінними даними (Snapshot Pattern). Swagger: ендпоінт провідника `verify-ticket` із фіксацією `boarded_at`. |
-| **Лаба 6: Оптимізація & EXPLAIN** | DBeaver: `EXPLAIN (ANALYZE, BUFFERS)` покриваючого індексу з `INCLUDE` (`Index Only Scan`, `Heap Fetches: 0`). Демонстрація `SKIP LOCKED` та тюнінгу `work_mem`. | DBeaver: профілювання планів виконання аналітичних звітів, математичний розрахунок `Buffer Cache Hit Ratio` (> 98%). | Термінал: запуск генератора стрес-датасету на 10 000+ квитків. DBeaver: бенчмарк прискорення запиту `Seq Scan` vs `Index Scan` та аналіз `Nested Loop` $\to$ `Hash Join`. |
+| **Лаба 6: Оптимізація & EXPLAIN** | DBeaver: `EXPLAIN (ANALYZE, BUFFERS)` покриваючого індексу з `INCLUDE` (`Index Only Scan`; зафіксувати `Heap Fetches: 0` лише якщо це підтверджено конкретним планом після обслуговування). Демонстрація `SKIP LOCKED` та тюнінгу `work_mem`. | DBeaver: профілювання планів виконання аналітичних звітів, математичний розрахунок `Buffer Cache Hit Ratio` (> 98%). | Термінал: запуск генератора стрес-датасету на 10 000+ квитків. DBeaver: бенчмарк прискорення запиту `Seq Scan` vs `Index Scan` та аналіз `Nested Loop` $\to$ `Hash Join`. |
 
 ---
 
@@ -658,84 +669,85 @@
 
 ```text
 easyrail/
+├── backend/
+│   ├── drizzle/                       # Згенеровані файли SQL-міграцій
+│   │   ├── 0000_init_schema.sql
+│   │   └── meta/
+│   ├── src/
+│   │   ├── config/
+│   │   │   └── env.ts                 # Валідація process.env через Zod (Fail-Fast)
+│   │   ├── db/
+│   │   │   ├── index.ts               # Пул з'єднань pg.Pool та клієнт Drizzle
+│   │   │   ├── schema.ts              # Джерело правди: всі таблиці, типи та індекси
+│   │   │   ├── seed.ts                # Сід реальної мережі залізниць України
+│   │   │   └── generate_stress_data.ts# Генератор 10 000+ тестових квитків
+│   │   ├── modules/
+│   │   │   ├── auth/              # Реєстрація, логін, Argon2id, JWT, Upsert
+│   │   │   │   ├── auth.routes.ts
+│   │   │   │   ├── auth.schemas.ts
+│   │   │   │   ├── auth.service.ts
+│   │   │   │   └── auth.repository.ts
+│   │   │   ├── passengers/        # Збережені попутники пасажира
+│   │   │   │   ├── passengers.routes.ts
+│   │   │   │   ├── passengers.schemas.ts
+│   │   │   │   └── passengers.service.ts
+│   │   │   ├── stations/          # Довідники міст і зупинок
+│   │   │   │   ├── stations.routes.ts
+│   │   │   │   └── stations.schemas.ts
+│   │   │   ├── trips/             # Пошуковий алгоритм, розклад, динамічні ціни
+│   │   │   │   ├── trips.routes.ts
+│   │   │   │   ├── trips.schemas.ts
+│   │   │   │   └── trips.service.ts
+│   │   │   ├── booking/           # Чисте ядро, перевірка перетинів, 10-хв холд, оплата
+│   │   │   │   ├── booking.routes.ts
+│   │   │   │   ├── booking.schemas.ts
+│   │   │   │   ├── booking.service.ts
+│   │   │   │   ├── booking.repository.ts
+│   │   │   │   ├── booking.domain.ts
+│   │   │   │   └── booking.domain.test.ts
+│   │   │   ├── attendant/         # Робоче місце провідника
+│   │   │   │   ├── attendant.routes.ts
+│   │   │   │   └── attendant.schemas.ts
+│   │   │   ├── refunds/           # Модуль добровільних повернень
+│   │   │   │   ├── refunds.routes.ts
+│   │   │   │   ├── refunds.schemas.ts
+│   │   │   │   └── refunds.service.ts
+│   │   │   ├── admin/             # Адміністративні звіти
+│   │   │   │   ├── admin.routes.ts
+│   │   │   │   └── admin.schemas.ts
+│   │   │   ├── health/            # Liveness/Readiness перевірка бази
+│   │   │   │   └── health.routes.ts
+│   │   │   └── workers/           # Фонові воркери на базі SKIP LOCKED
+│   │   │       └── cleanup.worker.ts
+│   │   ├── plugins/
+│   │   │   ├── swagger.ts
+│   │   │   ├── jwt.ts
+│   │   │   └── errors.ts
+│   │   ├── app.ts
+│   │   └── server.ts
+│   ├── tests/
+│   │   ├── concurrency/
+│   │   │   └── race-condition.test.ts # Concurrency-тест подвійної оплати на Vitest
+│   │   └── EasyRail_E2E.postman_collection.json # Повний наскрізний E2E сценарій
+│   ├── drizzle.config.ts              # Конфігурація CLI міграцій Drizzle
+│   ├── package.json
+│   ├── pnpm-lock.yaml
+│   ├── tsconfig.json                  # Строга типізація TypeScript
+│   └── vitest.config.ts               # Конфігурація тест-ранера Vitest
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml                 # Linting, Typecheck, Vitest на кожен PR
 │       └── docker-publish.yml     # Збірка і пуш у GitHub Container Registry (GHCR)
-├── drizzle/                       # Згенеровані файли SQL-міграцій
-│   ├── 0000_init_schema.sql
-│   └── meta/
 ├── docs/
 │   ├── lab2_dml_operations.sql    # Скрипт кафедральних DML-вибірок
 │   ├── lab4_indexes_report.md     # Звіт з проєктування B-Tree індексів
 │   ├── lab5_isolation_levels.sql  # Демонстрація аномалій рівнів ізоляції
 │   └── lab6_query_optimization.md # Профілювання EXPLAIN (ANALYZE, BUFFERS)
-├── src/
-│   ├── config/
-│   │   └── env.ts                 # Валідація process.env через Zod (Fail-Fast)
-│   ├── db/
-│   │   ├── index.ts               # Пул з'єднань pg.Pool та клієнт Drizzle
-│   │   ├── schema.ts              # Джерело правди: всі таблиці, типи та індекси
-│   │   ├── seed.ts                # Сід реальної мережі залізниць України
-│   │   └── generate_stress_data.ts# Генератор 10 000+ тестових квитків
-│   ├── modules/
-│   │   ├── auth/                  # Реєстрація, логін, Argon2id, JWT, Upsert
-│   │   │   ├── auth.routes.ts
-│   │   │   ├── auth.schemas.ts
-│   │   │   ├── auth.service.ts
-│   │   │   └── auth.repository.ts
-│   │   ├── passengers/            # Збережені попутники пасажира
-│   │   │   ├── passengers.routes.ts
-│   │   │   ├── passengers.schemas.ts
-│   │   │   └── passengers.service.ts
-│   │   ├── stations/              # Довідники міст і зупинок
-│   │   │   ├── stations.routes.ts
-│   │   │   └── stations.schemas.ts
-│   │   ├── trips/                 # Пошуковий алгоритм, розклад, динамічні ціни
-│   │   │   ├── trips.routes.ts
-│   │   │   ├── trips.schemas.ts
-│   │   │   └── trips.service.ts
-│   │   ├── booking/               # Чисте ядро, перевірка перетинів, 10-хв холд, оплата
-│   │   │   ├── booking.routes.ts
-│   │   │   ├── booking.schemas.ts
-│   │   │   ├── booking.service.ts
-│   │   │   ├── booking.repository.ts
-│   │   │   ├── booking.domain.ts  # Чисті математичні функції (FCIS)
-│   │   │   └── booking.domain.test.ts # Тести перевірки овербукінгу на Vitest
-│   │   ├── attendant/             # Робоче місце провідника (валідація квитків)
-│   │   │   ├── attendant.routes.ts
-│   │   │   └── attendant.schemas.ts
-│   │   ├── refunds/               # Модуль добровільних повернень (правило 2 годин)
-│   │   │   ├── refunds.routes.ts
-│   │   │   ├── refunds.schemas.ts
-│   │   │   └── refunds.service.ts
-│   │   ├── admin/                 # Адміністративні звіти заповненості та повернень
-│   │   │   ├── admin.routes.ts
-│   │   │   └── admin.schemas.ts
-│   │   ├── health/                # Liveness/Readiness перевірка бази (SELECT 1)
-│   │   │   └── health.routes.ts
-│   │   └── workers/               # Фонові воркери на базі SKIP LOCKED
-│   │       └── cleanup.worker.ts  # Очищення прострочених замовлень
-│   ├── plugins/
-│   │   ├── swagger.ts             # Конфігурація OpenAPI та Swagger UI (/docs)
-│   │   ├── jwt.ts                 # Плагін авторизації
-│   │   └── errors.ts              # Централізований обробник помилок
-│   ├── app.ts                     # Збірка додатку та підключення плагінів
-│   └── server.ts                  # Точка входу, Graceful Shutdown (SIGINT, SIGTERM)
-├── tests/
-│   ├── concurrency/
-│   │   └── race-condition.test.ts # Concurrency-тест подвійної оплати на Vitest
-│   └── EasyRail_E2E.postman_collection.json # Повний наскрізний E2E сценарій
 ├── .dockerignore
 ├── .env.example
 ├── .gitignore
 ├── docker-compose.yml             # Контейнер PostgreSQL 16 Alpine з healthcheck
 ├── Dockerfile                     # Multi-stage non-root build (USER node)
-├── drizzle.config.ts              # Конфігурація CLI міграцій Drizzle
-├── package.json
-├── pnpm-lock.yaml
-├── tsconfig.json                  # Строга типізація TypeScript
-└── vitest.config.ts               # Конфігурація тест-ранера Vitest
 ```
 
 ---
@@ -756,17 +768,17 @@ easyrail/
    *Переконайтеся, що статус Postgres — `healthy`.*
 3. **Застосування схеми та наповнення даними:**
    ```bash
-   pnpm drizzle-kit push
-   pnpm run db:seed
+   pnpm --dir backend exec drizzle-kit push
+   pnpm --dir backend run db:seed
    ```
 4. **Запуск тестового набору Vitest:**
    ```bash
-   pnpm test
+   pnpm --dir backend test
    ```
    *Усі юніт-тести ядра перетину інтервалів та тести конкурентності мають світитися зеленим (100% pass).*
 5. **Запуск бекенду:**
    ```bash
-   pnpm run dev
+   pnpm --dir backend run dev
    ```
    *Сервер повинен запуститися за < 500 мс без жодного варнінгу або помилки валідації Zod.*
 6. **Перевірка у браузері:**
@@ -774,7 +786,7 @@ easyrail/
    * Відкрити `http://localhost:3000/health` — отримати `{"status": "ok", "db": "healthy"}`.
 7. **Перевірка у DBeaver:**
    * Підключитися до `localhost:5432` (`postgres / postgres`).
-   * Перевірити, що всі таблиці наповнені, а `EXPLAIN (ANALYZE, BUFFERS)` показує роботу індексів.
+   * Перевірити, що всі таблиці наповнені, а безпечний staging-профіль `EXPLAIN (ANALYZE, BUFFERS)` показує роботу індексів.
 
 ---
 
