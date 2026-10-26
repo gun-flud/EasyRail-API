@@ -41,7 +41,7 @@
   * `test(concurrency): add race condition simulation`
 * **Перевірка перед комітом:** перед кожним комітом у каталозі `backend` обов'язково запустіть форматування та автоматичне виправлення lint-помилок:
   ```bash
-  pnpm --dir backend format; pnpm --dir backend lint:fix
+  pnpm --dir backend format && pnpm --dir backend lint:fix
   ```
   Після цього перегляньте внесені автоматичні зміни й лише тоді створюйте коміт.
 * **Обов'язковий Definition of Done (DoD) для вливання PR:**
@@ -179,6 +179,14 @@
   * *Коміт:* `feat(schema): create system logs table for audit trail`
   * *Інструменти:* Drizzle `jsonb`, `timestamp`.
   * *Перевірка:* Поле `created_at` має тип `TIMESTAMPTZ DEFAULT NOW()`.
+* **Крок 1.6:** Створити `.github/workflows/ci.yml` (запуск на кожен PR): typecheck, lint, Vitest, із сервіс-контейнером Postgres 16 для майбутніх інтеграційних тестів.
+  * *Коміт:* `ci: add pr pipeline with typecheck, lint, vitest and postgres service`
+  * *Інструменти:* GitHub Actions, `pnpm/action-setup`, service containers.
+  * *Перевірка:* Тестовий PR показує зелений статус; навмисна помилка типів робить його червоним.
+* **Крок 1.7:** Додати `.github/pull_request_template.md` з чеклістом DoD (як перевірити, EXPLAIN для SQL-змін, розмір PR до 400 рядків).
+  * *Коміт:* `docs(process): add pull request template with definition of done checklist`
+  * *Інструменти:* GitHub PR template.
+  * *Перевірка:* Новий PR автоматично містить чекліст.
 * **Артефакт на захист Лаби №1:** Фінансова схема обліку повернень, правила `ON DELETE CASCADE`, таблиця аудиту дій `system_logs`.
 
 ---
@@ -224,6 +232,15 @@
   * *Коміт:* `feat(stations): implement stations read and create crud endpoints`
   * *Інструменти:* Fastify controller, Zod schema validation.
   * *Перевірка:* Успішний виклик роутів через інтерактивний Swagger UI.
+* **Крок 2.5:** Розширити сід: створити 2 потяги (№705, №105), фізичні вагони (`carriages`) для кожного потяга (Купе та Плацкарт, прив'язані до `seat_templates`) та рейси `trips` на найближчі 30 днів (`departure_time` у `TIMESTAMPTZ`, `base_price` у копійках, цілим числом).
+  * *Коміт:* `feat(seed): seed trains, physical carriages and 30 days of trips`
+  * *Інструменти:* Drizzle batch insert, `ON CONFLICT DO NOTHING` для повторного запуску сіду.
+  * *Перевірка:* `SELECT COUNT(*) FROM trips` > 0; повторний `pnpm --dir backend run db:seed` не створює дублікатів; запит Лаби №2 `UPDATE trips SET base_price = ...` змінює реальні рядки.
+* **Крок 2.6:** Створити `backend/src/plugins/errors.ts` та класи доменних помилок (`NotFoundError`, `ConflictError`, `ForbiddenError`, `BusinessRuleError`). Підключити `app.setErrorHandler`, що мапить їх на 404 / 409 / 403 / 400, помилки валідації Zod на 400 і коди Postgres (`23505` $\to$ 409, `23503` $\to$ 409) в єдиний формат `{ message, code }`.
+  * *Коміт:* `feat(errors): add central error handler with domain error classes`
+  * *Інструменти:* Fastify `setErrorHandler`, Zod, Postgres error codes.
+  * *Перевірка:* Дублікат станції повертає 409 з єдиним JSON-форматом; невалідний UUID повертає 400; у Swagger видно схему помилки.
+  * *Артефакт:* Реалістичний набір даних для всіх наступних фаз та єдиний формат помилок API.
 * **Артефакт на захист Лаби №2:** Скрипт масового сідування `pnpm --dir backend run db:seed`, пакетна вставка (Batch Insert), базовий CRUD станцій.
 
 #### 3. Мохаммад Хашим — Гілка: `feat/passengers-dml-lab2`
@@ -246,6 +263,14 @@
   * *Коміт:* `docs(lab2): create dml operations script covering batch and conditional queries`
   * *Інструменти:* Чистий SQL у DBeaver.
   * *Перевірка:* Скрипт виконується в DBeaver без жодної помилки.
+* **Крок 2.5:** Створити сервіс аудиту `logAction(action, userId, metadata)`, що пише в `system_logs`, і підключити його до реєстрації, логіну та створення/видалення попутника.
+  * *Коміт:* `feat(audit): add audit log service writing to system_logs`
+  * *Інструменти:* Drizzle insert, `jsonb` для `metadata`.
+  * *Перевірка:* Після реєстрації та логіну в `system_logs` з'являються рядки з правильним `user_id` та `created_at`.
+* **Крок 2.6:** Додати в сід тестових користувачів: адміністратор, провідник та звичайний пасажир (паролі хешуються Argon2id, ідемпотентна вставка).
+  * *Коміт:* `feat(seed): seed admin, attendant and passenger accounts`
+  * *Інструменти:* Drizzle batch insert, `argon2`.
+  * *Перевірка:* Логін кожного з трьох акаунтів повертає JWT; потрібне поле `role` у `users` (див. примітку нижче).
 * **Артефакт на захист Лаби №2:** Канонічний DML-файл кафедри з усіма фільтрами (`LIKE`, `IN`, `BETWEEN`), контролер попутників.
 
 ---
@@ -294,6 +319,10 @@
   * *Коміт:* `feat(schedule): format timetable response dto for passenger view`
   * *Інструменти:* TypeScript interface / Zod response contract.
   * *Перевірка:* Розклад рейсу коректно рендериться у Swagger UI.
+* **Крок 3.5:** Написати інтеграційні тести `test/integration/stations.routes.test.ts` та `schedule.routes.test.ts` через `app.inject()`: список станцій, створення, дублікат (409), невалідний UUID (400), неіснуючий рейс (404), порядок зупинок у розкладі за `stop_order`.
+  * *Коміт:* `test(schedule): add integration tests for stations and schedule endpoints`
+  * *Інструменти:* Vitest, `app.inject()`.
+  * *Перевірка:* `pnpm --dir backend test` зелений; кожен ендпоінт має мінімум один happy-path та один негативний тест.
 * **Артефакт на захист Лаби №3:** SQL-запит розкладу з сортуванням `ORDER BY` та часовою інтервальною арифметикою.
 
 #### 3. Мохаммад Хашим — Гілка: `feat/lab3-complex-sql-analytics`
@@ -471,6 +500,15 @@
   * *Коміт:* `feat(attendant): record passenger boarding timestamp with duplicate check`
   * *Інструменти:* Drizzle update with duplicate check.
   * *Перевірка:* Спроба повторного сканування повертає попередження про вже здійснену посадку.
+* **Крок 5.5:** Реалізувати `GET /api/tickets` (мої квитки) з фільтром за статусом. Для `PAID` повертати дані зі зліпка (Snapshot), а не з поточних довідників.
+  * *Коміт:* `feat(tickets): add my tickets endpoint reading from snapshot fields`
+  * *Інструменти:* Fastify controller, Drizzle `select().where()`, Zod query.
+  * *Перевірка:* Користувач бачить лише свої квитки; після перейменування станції старий квиток не змінюється.
+* **Крок 5.6:** Реалізувати `DELETE /api/tickets/:ticketId/hold`: користувач скасовує власний холд, статус `HELD` $\to$ `CANCELLED`, місце звільняється миттєво.
+  * *Коміт:* `feat(booking): allow user to release own active hold`
+  * *Інструменти:* Drizzle update з умовою `status = 'HELD'` та `user_id`.
+  * *Перевірка:* Чужий холд повертає 403, оплачений квиток повертає 409, після звільнення місце знову доступне в карті місць.
+  * *Артефакт:* Повний життєвий цикл квитка з боку пасажира: холд, перегляд, скасування.
 * **Артефакт на захист Лаби №5:** Snapshot Pattern (незмінний зліпок фінансових даних), робоче місце провідника з атомарною фіксацією посадки.
 
 #### 3. Мохаммад Хашим — Гілка: `feat/refunds-isolation-levels`
@@ -492,6 +530,11 @@
   * *Коміт:* `docs(lab5): add isolation level concurrency anomaly demonstration scripts`
   * *Інструменти:* SQL скрипти ізоляцій у DBeaver.
   * *Перевірка:* Наочна демонстрація різниці поведінки ізоляцій у двох паралельних вкладках DBeaver.
+* **Крок 5.5:** Написати інтеграційні тести повернення: успіх за > 2 години, `400` за < 2 години, `403` для чужого квитка, повторне повернення (`409`), а також запис у `system_logs` при кожному поверненні.
+  * *Коміт:* `test(refunds): add integration tests for refund rules and audit trail`
+  * *Інструменти:* Vitest, `app.inject()`, тестова БД.
+  * *Перевірка:* Усі сценарії зелені; після успішного повернення є рядок у `refunds` і в `system_logs`.
+  * *Артефакт:* Перевірене ядро повернень (чиста функція плюс інтеграційні тести) та аудиторський слід.
 * **Артефакт на захист Лаби №5:** Модуль повернень із перевіркою правила 2 годин, SQL-скрипт демонстрації аномалій рівнів ізоляції.
 
 ---

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import buildApp from './app.js';
+import { buildApp } from './app.js';
 import { env } from './config/env.js';
 import { loggerOptions } from './config/logger.js';
 
@@ -38,4 +38,4 @@ async function start() {
 	}
 }
 
-start();
+await start();
