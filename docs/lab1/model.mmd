@@ -80,6 +80,7 @@ erDiagram
         uuid to_station_id FK
         enum ticket_status "HELD, PAID, CANCELLED, EXPIRED"
         timestamptz cancelled_time
+        text payment_transaction_id
         varchar pdf_url
         int price
         int to_stop_order
@@ -100,6 +101,7 @@ erDiagram
         varchar name
         varchar hashed_password
         varchar email UK
+        enum role "PASSENGER, ADMIN, CONDUCTOR"
     }
 
     passengers {
