@@ -119,25 +119,29 @@ CREATE TABLE IF NOT EXISTS stops (
     );
 -- this one fixed cancelled time  - timestamptz 
 CREATE TABLE IF NOT EXISTS ticket_segment (
-        ticket_id BIGINT GENERATED ALWAYS AS IDENTITY,
-        user_id INT NOT NULL,
-        trip_id INT NOT NULL,
-        carriage_id INT NOT NULL,
-        seat_id INT NOT NULL,
-        from_station_id INT NOT NULL,
-        to_station_id INT NOT NULL,
+        ticket_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL,
+        passenger_id UUID NOT NULL,
+        trip_id UUID NOT NULL,
+        seat_id UUID NOT NULL,
+        carriage_id UUID NOT NULL,
+        from_station_id UUID NOT NULL,
+        to_station_id UUID NOT NULL,
+
+        ticket_status ticket_status NOT NULL DEFAULT 'HOLD',
         from_station_name VARCHAR(100) NOT NULL,
         to_station_name VARCHAR(100) NOT NULL,
         from_stop_order INT NOT NULL,
         to_stop_order INT NOT NULL,
         departure_time TIMESTAMPTZ NOT NULL,
         arrival_time TIMESTAMPTZ NOT NULL,
-        passanger_lastname VARCHAR(50) NOT NULL,
-        passanger_name VARCHAR(50) NOT NULL,
+        passenger_lastname VARCHAR(50) NOT NULL,
+        passenger_name VARCHAR(50) NOT NULL,
         ticket_status ticket_status NOT NULL DEFAULT 'HOLD',
         cancelled_time TIMESTAMP NULL DEFAULT NULL, --ТРЕАБА ПОДУМАТИ ЧИ НОРМ РЕАЛІЗАЦІЯ
-        pdf_url TEXT, --ПОСИЛАННЯ НА S3 БАКЕТ
-        price NUMERIC(9, 2) NOT NULL,
+        payment_transaction_id TEXT DEFAULT NULL,
+        pdf_url TEXT NULL, --ПОСИЛАННЯ НА S3 БАКЕТ
+        price INT NOT NULL, --РАХУЄМ В КОПІЙКАХ
         created_at TIMESTAMP NOT NULL DEFAULT NOW (),
         paid_at TIMESTAMP NULL DEFAULT NULL,
         hold_expires_at TIMESTAMP DEFAULT (NOW () + INTERVAL '10 minutes'),
@@ -145,6 +149,7 @@ CREATE TABLE IF NOT EXISTS ticket_segment (
 
         PRIMARY KEY (ticket_id),
         FOREIGN KEY (user_id) REFERENCES users (user_id),
+        FOREIGN KEY (passenger_id) REFERENCES passengers (passenger_id),
         FOREIGN KEY (trip_id) REFERENCES trips (trip_id),
         FOREIGN KEY (carriage_id) REFERENCES carriages (carriage_id),
         FOREIGN KEY (seat_id) REFERENCES seat_templates_list (seat_id),
