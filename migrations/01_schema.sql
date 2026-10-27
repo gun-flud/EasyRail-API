@@ -1,6 +1,6 @@
 CREATE TYPE carriage_type AS ENUM ('COUPE', 'PLATZKART', 'LUX', 'SEAT');
 
-CREATE TYPE route_status AS ENUM ('ACTIVE', 'UNACTIVE');
+CREATE TYPE route_status AS ENUM ('ACTIVE', 'INACTIVE');
 
 CREATE TYPE schedule_rule AS ENUM (
     'MONDAY',
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS routes (
         route_name VARCHAR(100) NOT NULL,
         base_segment_price NUMERIC(9, 2) NOT NULL DEFAULT 50,
         route_number VARCHAR(10) NOT NULL,
-        route_status route_status NOT NULL DEFAULT 'UNACTIVE',
+        route_status route_status NOT NULL DEFAULT 'INACTIVE',
         schedule_rule schedule_rule NOT NULL,
         train_type train_type NOT NULL DEFAULT 'PASSENGER',
         PRIMARY KEY (route_id)
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS seat_templates_list (
 CREATE TABLE IF NOT EXISTS trips (
         trip_id INT GENERATED ALWAYS AS IDENTITY,
         route_id INT NOT NULL,
-        departure_time TIMESTAMP NOT NULL,
+        departure_time TIMESTAMPTZ NOT NULL,
         trip_status trip_status NOT NULL DEFAULT 'SCHEDULED',
         delay_minutes INT,
         PRIMARY KEY (trip_id),
@@ -128,8 +128,8 @@ CREATE TABLE IF NOT EXISTS ticket_segment (
         to_station_name VARCHAR(100) NOT NULL,
         from_stop_order INT NOT NULL,
         to_stop_order INT NOT NULL,
-        departure_time TIMESTAMP NOT NULL,
-        arrival_time TIMESTAMP NOT NULL,
+        departure_time TIMESTAMPTZ NOT NULL,
+        arrival_time TIMESTAMPTZ NOT NULL,
         passanger_lastname VARCHAR(50) NOT NULL,
         passanger_name VARCHAR(50) NOT NULL,
         ticket_status ticket_status NOT NULL DEFAULT 'HOLD',
