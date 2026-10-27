@@ -1,5 +1,5 @@
 CREATE TYPE carriage_type AS ENUM ('COUPE', 'PLATZKART', 'LUX', 'SEAT');
-
+--fixed unactive/active status to inactive/active
 CREATE TYPE route_status AS ENUM ('ACTIVE', 'INACTIVE');
 
 CREATE TYPE schedule_rule AS ENUM (
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS carriage_type_list (
         number_of_seats INT NOT NULL,
         PRIMARY KEY (carriage_type_id)
     );
-
+-- defaualt value route_status = 'INACTIVE' not "UNACTIVE" because of enum type
 CREATE TABLE IF NOT EXISTS routes (
         route_id INT GENERATED ALWAYS AS IDENTITY,
         route_name VARCHAR(100) NOT NULL,
@@ -94,6 +94,8 @@ CREATE TABLE IF NOT EXISTS seat_templates_list (
         FOREIGN KEY (carriage_type_id) REFERENCES carriage_type_list (carriage_type_id)
     );
 
+
+-- this one fixed timestamptz
 CREATE TABLE IF NOT EXISTS trips (
         trip_id INT GENERATED ALWAYS AS IDENTITY,
         route_id INT NOT NULL,
@@ -115,7 +117,7 @@ CREATE TABLE IF NOT EXISTS stops (
         FOREIGN KEY (route_id) REFERENCES routes (route_id),
         FOREIGN KEY (station_id) REFERENCES stations (station_id)
     );
-
+-- this one fixed cancelled time  - timestamptz 
 CREATE TABLE IF NOT EXISTS ticket_segment (
         ticket_id BIGINT GENERATED ALWAYS AS IDENTITY,
         user_id INT NOT NULL,
