@@ -3,9 +3,9 @@ erDiagram
     routes ||--|{ stops : "contains"
     routes ||--o{ trips : "generates"
     routes ||--o{ carriages : "assigned"
-    carriage_type ||--|{ seat_templates : "defines"
-    carriage_type ||--o{ carriages : "categorizes"
-    seat_templates ||--o{ ticket_segment : "reserved"
+    carriage_type_list ||--|{ seat_templates_list : "defines"
+    carriage_type_list ||--o{ carriages : "categorizes"
+    seat_templates_list ||--o{ ticket_segment : "reserved"
     carriages ||--o{ ticket_segment : "placed_in"
     trips ||--o{ ticket_segment : "booked_on"
     users ||--o{ ticket_segment : "purchased_by"
@@ -16,37 +16,50 @@ erDiagram
 
     stations {
         uuid station_id PK
-        varchar name
+        varchar station_name
         varchar city
     }
 
-    stops {
-        uuid stop_id PK
-        uuid route_id FK
-        uuid station_id FK
-        timestamptz stop_time
-        timestamptz departure_time
-        int stop_order
+    users {
+        uuid user_id PK
+        varchar user_name
+        varchar hashed_password
+        varchar email UK
+        enum user_role "PASSENGER, ADMIN, CONDUCTOR"
+    }
+
+    passengers {
+        uuid passenger_id PK
+        uuid user_id FK
+        varchar passenger_lastname
+        varchar passenger_name
+    }
+
+    carriage_type_list {
+        uuid carriage_type_id PK
+        enum carriage_type UK "COUPE, PLATZKART, LUX, SEAT"
+        int carriage_type_price_multiplier
+        int number_of_seats
     }
 
     routes {
         uuid route_id PK
-        varchar name
+        varchar route_name
         int base_segment_price
-        int number
-        enum status "ACTIVE, INACTIVE"
-        enum schedule_rule
-        enum train_type
+        varchar route_number
+        enum route_status "ACTIVE, INACTIVE"
+        enum schedule_rule "MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY, DAILY, WEEKDAYS, WEEKENDS"
+        enum train_type "INTERCITY, REGIONAL, PASSENGER, FAST, FIRM"
     }
 
-    carriage_type {
-        uuid carriage_type_id PK
-        enum type "CUPE, PLATZKART, LUX, SEAT"
-        numeric carriage_type_price_multiplier
-        int number_of_seats
+    carriages {
+        uuid carriage_id PK
+        uuid carriage_type_id FK
+        uuid route_id FK
+        int carriage_number
     }
 
-    seat_templates {
+    seat_templates_list {
         uuid seat_id PK
         uuid carriage_type_id FK
         int seat_number
@@ -54,59 +67,46 @@ erDiagram
         enum tier_type "TOP, DOWN, SEAT"
     }
 
-    carriages {
-        uuid carriage_id PK
-        uuid carriage_type_id FK
-        uuid route_id FK
-        int number
-    }
-
     trips {
         uuid trip_id PK
         uuid route_id FK
         timestamptz departure_time
-        enum status "SCHEDULED, DEPARTED, CANCELLED, COMPLETED"
+        enum trip_status "SCHEDULED, DEPARTED, CANCELLED, COMPLETED"
         int delay_minutes
+    }
+
+    stops {
+        uuid stop_id PK
+        uuid route_id FK
+        uuid station_id FK
+        int arrival_offset_minutes
+        int departure_offset_minutes
+        int stop_order
     }
 
     ticket_segment {
         uuid ticket_id PK
         uuid user_id FK
-        uuid passenger_id FK 
+        uuid passenger_id FK
         uuid trip_id FK
         uuid seat_id FK
         uuid carriage_id FK
         uuid from_station_id FK
         uuid to_station_id FK
-        enum ticket_status "HELD, PAID, CANCELLED, EXPIRED"
-        timestamptz cancelled_time
-        text payment_transaction_id
-        varchar pdf_url
-        int price
+        int from_stop_order
         int to_stop_order
-        timestamptz departure_time
-        timestamptz arrival_time
+        enum ticket_status "HOLD, PAID, RETURNED, EXPIRED"
         timestamptz created_at
-        timestamptz paid_at
         timestamptz hold_expires_at
+        timestamptz paid_at
+        timestamptz cancelled_at
+        int price
+        text payment_transaction_id UK
+        text pdf_url
         varchar passenger_lastname
         varchar passenger_name
         varchar from_station_name
         varchar to_station_name
-        int from_stop_order
-    }
-
-    users {
-        uuid user_id PK
-        varchar name
-        varchar hashed_password
-        varchar email UK
-        enum role "PASSENGER, ADMIN, CONDUCTOR"
-    }
-
-    passengers {
-        uuid passenger_id PK
-        uuid user_id FK
-        varchar lastname
-        varchar name
+        timestamptz departure_time
+        timestamptz arrival_time
     }
