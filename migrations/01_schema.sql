@@ -27,20 +27,21 @@ CREATE TYPE tier_type AS ENUM ('TOP', 'DOWN', 'SEAT');
 
 CREATE TYPE trip_status AS ENUM ('SCHEDULED', 'DEPARTED', 'CANCELLED', 'COMPLETED');
 
-CREATE TYPE ticket_status AS ENUM ('HOLD', 'PAID', 'RETURNED', 'EXPIRED');
--- added user_role ENUM
+CREATE TYPE ticket_status AS ENUM ('HELD', 'PAID', 'RETURNED', 'EXPIRED');
+
 CREATE TYPE user_role AS ENUM ('PASSENGER', 'ADMIN', 'CONDUCTOR');
 
-CREATE TABLE IF NOT EXISTS stations ( -- TO CORRECT
+CREATE TABLE IF NOT EXISTS stations ( 
         station_id UUID DEFAULT gen_random_uuid(),
         station_name VARCHAR(100) NOT NULL,
         city VARCHAR(50) NOT NULL,
 
-        PRIMARY KEY (station_id),
-        CONSTRAINT uq_stations_name_city UNIQUE (station_name, city)
+        CONSTRAINT uq_stations_name_city UNIQUE (station_name, city),
+
+        PRIMARY KEY (station_id)
     );
 
-CREATE TABLE IF NOT EXISTS users ( -- CORRECTED
+CREATE TABLE IF NOT EXISTS users ( 
         user_id UUID DEFAULT gen_random_uuid(),
         user_name VARCHAR(50) NOT NULL,
         hashed_password VARCHAR(400) NOT NULL,
@@ -50,14 +51,14 @@ CREATE TABLE IF NOT EXISTS users ( -- CORRECTED
         PRIMARY KEY (user_id)
     );
 
-CREATE TABLE IF NOT EXISTS passengers ( --CORRECTED
+CREATE TABLE IF NOT EXISTS passengers ( 
         passenger_id UUID DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL,
         passenger_lastname VARCHAR(50) NOT NULL,
         passenger_name VARCHAR(50) NOT NULL,
         
         PRIMARY KEY (passenger_id),
-        FOREIGN KEY (user_id) REFERENCES users (user_id)
+        FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
     );
 
 CREATE TABLE IF NOT EXISTS carriage_type_list (
@@ -70,7 +71,7 @@ CREATE TABLE IF NOT EXISTS carriage_type_list (
 
         PRIMARY KEY (carriage_type_id)
     );
--- defaualt value route_status = 'INACTIVE' not "UNACTIVE" because of enum type
+
 CREATE TABLE IF NOT EXISTS routes (
         route_id UUID DEFAULT gen_random_uuid(),
         route_name VARCHAR(100) NOT NULL,
@@ -94,8 +95,8 @@ CREATE TABLE IF NOT EXISTS carriages (
         CONSTRAINT uq_carriages_route_number UNIQUE (route_id, carriage_number),
 
         PRIMARY KEY (carriage_id),
-        FOREIGN KEY (carriage_type_id) REFERENCES carriage_type_list (carriage_type_id),
-        FOREIGN KEY (route_id) REFERENCES routes (route_id)
+        FOREIGN KEY (carriage_type_id) REFERENCES carriage_type_list (carriage_type_id) ON DELETE RESTRICT,
+        FOREIGN KEY (route_id) REFERENCES routes (route_id) ON DELETE CASCADE 
     );
 
 CREATE TABLE IF NOT EXISTS seat_templates_list (
@@ -109,11 +110,9 @@ CREATE TABLE IF NOT EXISTS seat_templates_list (
         CONSTRAINT uq_seat_templates_type_number UNIQUE (carriage_type_id, seat_number),
 
         PRIMARY KEY (seat_id),
-        FOREIGN KEY (carriage_type_id) REFERENCES carriage_type_list (carriage_type_id)
+        FOREIGN KEY (carriage_type_id) REFERENCES carriage_type_list (carriage_type_id) ON DELETE CASCADE
     );
 
-
--- this one fixed timestamptz
 CREATE TABLE IF NOT EXISTS trips (
         trip_id UUID DEFAULT gen_random_uuid(),
         route_id UUID NOT NULL,
@@ -125,7 +124,7 @@ CREATE TABLE IF NOT EXISTS trips (
         CONSTRAINT uq_trips_route_departure UNIQUE (route_id, departure_time),
 
         PRIMARY KEY (trip_id),
-        FOREIGN KEY (route_id) REFERENCES routes (route_id)
+        FOREIGN KEY (route_id) REFERENCES routes (route_id) ON DELETE RESTRICT
     );
 
 CREATE TABLE IF NOT EXISTS stops (
@@ -143,11 +142,10 @@ CREATE TABLE IF NOT EXISTS stops (
         CONSTRAINT uq_stops_route_station UNIQUE (route_id, station_id),
 
         PRIMARY KEY (stop_id),
-        FOREIGN KEY (route_id) REFERENCES routes (route_id),
-        FOREIGN KEY (station_id) REFERENCES stations (station_id)
+        FOREIGN KEY (route_id) REFERENCES routes (route_id) ON DELETE CASCADE,
+        FOREIGN KEY (station_id) REFERENCES stations (station_id) ON DELETE RESTRICT
     );
 
--- this one fixed cancelled time  - timestamptz 
 CREATE TABLE IF NOT EXISTS ticket_segment (
         ticket_id UUID DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL,
@@ -161,7 +159,7 @@ CREATE TABLE IF NOT EXISTS ticket_segment (
         to_stop_order INT NOT NULL,
 
         --state machine
-        ticket_status ticket_status NOT NULL DEFAULT 'HOLD',
+        ticket_status ticket_status NOT NULL DEFAULT 'HELD',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW (),
         hold_expires_at TIMESTAMPTZ DEFAULT (NOW () + INTERVAL '10 minutes'),
         paid_at TIMESTAMPTZ NULL DEFAULT NULL,
@@ -179,17 +177,20 @@ CREATE TABLE IF NOT EXISTS ticket_segment (
         to_station_name VARCHAR(100) NOT NULL,
         departure_time TIMESTAMPTZ NOT NULL,
         arrival_time TIMESTAMPTZ NOT NULL,
+
+        -- FOR CONDUCTOR 
+        boarded_at TIMESTAMPTZ NULL DEFAULT NULL,
         
         CONSTRAINT chk_ticket_stop_order CHECK (from_stop_order < to_stop_order),
         CONSTRAINT chk_ticket_times      CHECK (arrival_time > departure_time),
         CONSTRAINT chk_ticket_stations   CHECK (from_station_id <> to_station_id),
 
         PRIMARY KEY (ticket_id),
-        FOREIGN KEY (user_id) REFERENCES users (user_id),
-        FOREIGN KEY (passenger_id) REFERENCES passengers (passenger_id),
-        FOREIGN KEY (trip_id) REFERENCES trips (trip_id),
-        FOREIGN KEY (carriage_id) REFERENCES carriages (carriage_id),
-        FOREIGN KEY (seat_id) REFERENCES seat_templates_list (seat_id),
+        FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE RESTRICT,
+        FOREIGN KEY (passenger_id) REFERENCES passengers (passenger_id) ON DELETE SET NULL,
+        FOREIGN KEY (trip_id) REFERENCES trips (trip_id) ON DELETE RESTRICT,
+        FOREIGN KEY (carriage_id) REFERENCES carriages (carriage_id) ON DELETE RESTRICT,
+        FOREIGN KEY (seat_id) REFERENCES seat_templates_list (seat_id) ON DELETE RESTRICT,
         FOREIGN KEY (from_station_id) REFERENCES stations (station_id) ON DELETE RESTRICT,
         FOREIGN KEY (to_station_id) REFERENCES stations (station_id) ON DELETE RESTRICT
         -- we should add index to not allow holding simutaniosly for one person
