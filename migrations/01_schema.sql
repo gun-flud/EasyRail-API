@@ -187,7 +187,7 @@ CREATE TABLE IF NOT EXISTS ticket_segment (
 
         PRIMARY KEY (ticket_id),
         FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE RESTRICT,
-        FOREIGN KEY (passenger_id) REFERENCES passengers (passenger_id) ON DELETE SET NULL,
+        FOREIGN KEY (passenger_id) REFERENCES passengers (passenger_id) ON DELETE RESTRICT,
         FOREIGN KEY (trip_id) REFERENCES trips (trip_id) ON DELETE RESTRICT,
         FOREIGN KEY (carriage_id) REFERENCES carriages (carriage_id) ON DELETE RESTRICT,
         FOREIGN KEY (seat_id) REFERENCES seat_templates_list (seat_id) ON DELETE RESTRICT,
