@@ -1,0 +1,1 @@
+# DEFENSE — Завдання 3:  Взаємодія (Sequence Diagram)
