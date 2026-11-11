@@ -45,14 +45,14 @@ services:
         env_file:
             - ./backend/.env
         ports:
-            - "${BACKEND_PORT:-8080}:8080"
+            - "${BACKEND_PORT:-8080}:${BACKEND_PORT:-8080}"
         restart: unless-stopped
         depends_on:
             postgres:
                 condition: service_healthy
         environment:
             # NODE_ENV: ${NODE_ENV:-development}
-            # PORT: ${PORT:-8080}
+            PORT: ${BACKEND_PORT:-8080}
             HOST: 0.0.0.0
             DATABASE_URL: postgresql://${DB_USER:?DB_USER is required}:${DB_PASSWORD:?DB_PASSWORD is required}@postgres:5432/${DB_NAME:?DB_NAME is required}
             # JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_easyrail}

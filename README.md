@@ -44,7 +44,7 @@
 * **Runtime & Мова:** Node.js 22 LTS, TypeScript 5.x (`NodeNext`, `verbatimModuleSyntax`, `noUncheckedIndexedAccess`).
 * **Веб-сервер:** Fastify v5 (висока пропускна здатність, модульна архітектура).
 * **Контракти та валідація:** Zod + `fastify-type-provider-zod` (Single Source of Truth).
-* **База даних:** PostgreSQL 16 (Alpine) + Drizzle ORM (транзакції, `SELECT ... FOR UPDATE`, часткові індекси).
+* **База даних:** PostgreSQL 18 (Alpine) + Drizzle ORM (транзакції, `SELECT ... FOR UPDATE`, часткові індекси).
 * **Тестування:** Vitest (інтеграційне тестування через `app.inject()` без підняття відкритих портів).
 * **Документація:** OpenAPI 3.0 / Swagger UI (`/docs`).
 * **DevOps:** Docker Multi-Stage Build ($\approx 150\text{ MB}$, непривілейований `USER node`), Docker Compose, pnpm v9.
@@ -60,9 +60,25 @@
 git clone https://github.com/gun-flud/EasyRail-API.git
 cd EasyRail-API
 
-# 2. Запустити базу даних та API
+# 2. Створити та налаштувати змінні Compose
+cp .env.example .env
+# Відредагувати .env: DB_USER (він задає POSTGRES_USER), DB_PASSWORD, DB_NAME
+# та BACKEND_PORT (цей порт використовується і на хості, і всередині контейнера)
+
+# 3. Створити та налаштувати змінні бекенду
+cp backend/.env.example backend/.env
+# Відредагувати backend/.env: встановити власний JWT_SECRET
+# У Compose PORT береться з BACKEND_PORT у кореневому .env
+
+# 4. Запустити базу даних та API
 docker compose up --build -d
 ```
+
+Проєкт використовує PostgreSQL 18, оскільки схема використовує вбудовану
+функцію `uuidv7()`. У PostgreSQL 18 том `pgdata` монтується до
+`/var/lib/postgresql`. Існуючий том PostgreSQL 16 не можна використовувати
+напряму: перед переходом виконайте міграцію через `pg_dump`/`pg_restore`
+(або `pg_upgrade`), після чого створіть чистий том PostgreSQL 18.
 
 - **API:** `http://localhost:8080`
 - **Swagger UI:** `http://localhost:8080/docs`
