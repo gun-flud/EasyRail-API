@@ -1,0 +1,79 @@
+---
+config:
+  theme: redux-color
+---
+sequenceDiagram
+    %% autonumber
+    actor P as Passenger
+    participant UI as Web Client
+    participant API as Fastify API Gateway
+    participant Svc as Booking Service
+    participant DB as PostgreSQL Database
+
+    %% =============================================================
+    %% UC-05: Seat Hold Reservation (10 min TTL with Selection Loop)
+    %% =============================================================
+    loop Seat Selection and Hold Process
+        P->>+UI: Select seat (seatNumber: 14)
+        UI->>+API: Request hold for seat (tripId, carriageId, seat: 14, stations: [1..4])
+        API->>+Svc: Reserve seat hold (userId, tripId, carriageId, seat: 14, from: 1, to: 4)
+
+        Svc->>+DB: Begin database transaction (BEGIN)
+        DB-->>-Svc: Transaction started (OK)
+
+        Svc->>+DB: Check active holds count for user (userId, status: HELD)
+        DB-->>-Svc: Return active count (count: 0)
+
+        alt Active hold limit reached (count >= 1)
+            rect rgb(255, 235, 235)
+            break [break] Stop: User already has an active hold
+                Svc->>+DB: Rollback transaction (ROLLBACK)
+                DB-->>-Svc: Transaction cancelled (OK)
+                Svc-->>API: Hold limit reached error (HoldLimitExceeded)
+                API-->>UI: 409 Conflict (Hold limit exceeded: max 1 active hold)
+                UI-->>P: Friendly alert: "You already have an active hold. Please complete or cancel it first."
+                Note over P, DB: [break] Fatal limit reached. Terminate loop, passenger must clear prior hold.
+            end
+            end
+        else Active hold limit not exceeded (count == 0)
+            rect rgb(235, 255, 235)
+            Note over API, DB: Success: User doesn't have an active reservation
+            Svc->>+DB: Lock seat #14 and check station overlap (seat: 14, max(from) < min(to), SKIP LOCKED)
+            DB-->>-Svc: Return conflict status (conflicts: 0)
+
+            alt Seat already taken by another user (Race condition)
+                rect rgb(255, 235, 235)
+                opt [continue] Retry: Seat taken, refresh map and select another
+                    Note over API, DB: Conflict: Seat was just reserved by someone else
+                    Svc->>+DB: Rollback transaction (ROLLBACK)
+                    DB-->>-Svc: Transaction cancelled (OK)
+                    Svc-->>API: Seat already taken error (SeatConflictError)
+                    API-->>UI: 409 Conflict (Seat already reserved)
+                    UI->>+API: Fetch updated available seats (tripId, carriageId, stations: [1..4])
+                    API-->>-UI: 200 OK (Updated seat map)
+                    UI-->>P: Friendly alert: "Sorry, this seat was just reserved! Map updated, please pick another."
+                    Note over P, UI: [continue] Loop iterates: Passenger selects another available seat
+                end
+                end
+            else Seat is free on this interval
+                rect rgb(235, 255, 235)
+                break [break] Success: Seat is held, exit loop
+                    Svc->>+DB: Create hold record (tripId, seat: 14, status: HELD, ttl: 600s, price: 45000 коп)
+                    DB-->>-Svc: Return ticket ID and expiration time (ticketId: UUIDv7, expiresAt: NOW()+10m)
+                    Svc->>+DB: Commit transaction (COMMIT)
+                    DB-->>-Svc: Transaction committed (OK)
+
+                    Svc-->>API: Hold confirmed (ticketId: UUIDv7, countdown: 600s)
+                    API-->>UI: 201 Created (holdId: UUIDv7, countdown: 600s)
+                    UI-->>P: Start 10-minute countdown (10:00) and show passenger form
+                    Note over P, UI: [break] Successfully held! Loop terminates, proceed to passenger data entry.
+                end
+                end
+            end
+            end
+        end
+
+        deactivate Svc
+        deactivate API
+        deactivate UI
+    end
