@@ -14,7 +14,7 @@ export default tseslint.config(
 
   // 3. Специфічні правила для Fastify + TypeScript (NodeNext)
   {
-    files: ['src/**/*.ts', 'tests/**/*.ts'],
+    files: ['src/**/*.ts', 'test/**/*.ts', 'tests/**/*.ts'],
     rules: {
       // Заборона невикористаних змінних (крім тих, що починаються з _)
       '@typescript-eslint/no-unused-vars': [
