@@ -2,9 +2,14 @@ import 'dotenv/config';
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
 import { loggerOptions } from './config/logger.js';
+import { createPool } from './db/pool.js';
+
+const pool = env.DATABASE_URL ? createPool(env.DATABASE_URL) : undefined;
 
 const app = buildApp({
 	logger: loggerOptions(),
+	pool,
+	closePoolOnClose: true,
 });
 
 async function shutdown(signal: string) {
