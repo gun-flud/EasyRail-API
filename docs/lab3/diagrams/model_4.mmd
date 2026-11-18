@@ -1,0 +1,65 @@
+---
+config:
+  theme: redux-color
+---
+sequenceDiagram
+    %% autonumber
+    actor P as Passenger
+    participant UI as Web Client
+    participant API as Fastify API Gateway
+    participant Svc as Booking Service
+    participant DB as PostgreSQL Database
+    participant Bank as LiqPay Payment Gateway
+    participant PDF as Ticket Generator Worker
+
+    %% =============================================================
+    %% UC-13..15: Payment Webhook, Snapshot and Ticket Issuance
+    %% =============================================================
+    P->>Bank: Submit card details and confirm 3D-Secure
+    activate Bank
+
+    Bank->>+API: POST /api/v1/payments/webhook (invoiceId, status, amount: 45000 коп, signature: HMAC-SHA256)
+    API->>+Svc: Process payment webhook (payload, signature)
+
+    Svc->>Svc: Verify cryptographic HMAC-SHA256 signature (secretKey)
+
+    alt Payment status is SUCCESS (Transaction approved)
+        rect rgb(235, 255, 235)
+        Note over API, DB: Success: Payment confirmed by bank (Freeze Snapshot & Issue Ticket)
+        Svc->>+DB: Begin database transaction (BEGIN)
+        DB-->>-Svc: Transaction started (OK)
+
+        Svc->>+DB: Freeze ticket snapshot and update status (ticketId, status: PAID, price: 45000 коп, passenger: Ivanenko I.)
+        DB-->>-Svc: Update successful (1 row affected, Snapshot frozen)
+
+        Svc->>+DB: Commit transaction (COMMIT)
+        DB-->>-Svc: Transaction committed (OK)
+
+        par Parallel: PDF ticket generation and passenger live notification
+            Svc->>+PDF: Render electronic ticket with QR (ticketId, qrPayload: UUIDv7)
+            PDF-->>-Svc: Return PDF storage URL (pdfUrl: "/tickets/2026/uuid.pdf")
+        and
+            Svc->>+UI: Push WebSocket notification (event: TICKET_ISSUED, ticketId: UUIDv7)
+            UI-->>-P: Render success screen (display QR code, download PDF button)
+        end
+
+        Svc-->>API: Payment processed acknowledgment (status: PROCESSED)
+        API-->>Bank: 200 OK (status: accepted)
+        end
+    else Payment status is FAILURE (Card declined or timeout)
+        rect rgb(255, 235, 235)
+        Note over API, DB: Failure: Payment declined by issuing bank (Release Seat Hold)
+        Svc->>+DB: Update ticket status to EXPIRED (ticketId, status: EXPIRED, releasedAt: NOW())
+        DB-->>-Svc: Update successful (Seat released back to inventory)
+
+        Svc->>+UI: Push WebSocket notification (event: PAYMENT_FAILED, reason: Card declined)
+        UI-->>-P: Friendly alert: "Payment was declined by your bank. The seat reservation has expired."
+
+        Svc-->>API: Payment failure acknowledgment (status: FAILED)
+        API-->>Bank: 200 OK (status: acknowledged)
+        end
+    end
+
+    deactivate Svc
+    deactivate API
+    deactivate Bank

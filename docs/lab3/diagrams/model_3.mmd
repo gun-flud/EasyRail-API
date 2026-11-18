@@ -1,0 +1,59 @@
+---
+config:
+  theme: redux-color
+---
+sequenceDiagram
+    %% autonumber
+    actor P as Passenger
+    participant UI as Web Client
+    participant API as Fastify API Gateway
+    participant Svc as Booking Service
+    participant DB as PostgreSQL Database
+    participant Bank as LiqPay Payment Gateway
+
+    %% =============================================================
+    %% UC-08..10: Passenger Details and Checkout Session Initialization
+    %% =============================================================
+    P->>+UI: Enter passenger full name and document ID
+
+    opt Save companion to passenger address book for future trips
+        UI->>+API: POST /api/v1/passengers (userId, fullName: "Ivanenko I.", docId: "AB123456")
+        API->>+DB: INSERT INTO passengers (user_id, full_name, doc_id)
+        DB-->>-API: Passenger record created (passengerId: 104)
+        API-->>-UI: 201 Created (Companion saved to user profile)
+    end
+
+    P->>UI: Click "Proceed to payment"
+    UI->>+API: Request checkout session (ticketId: UUIDv7)
+    API->>+Svc: Initiate checkout session (ticketId, userId)
+
+    Svc->>+DB: Query ticket hold status and remaining TTL (ticket_segment)
+    DB-->>-Svc: Return hold record (status: HELD, expiresAt: 10:10:00, remainingTTL: 420s)
+
+    alt Seat hold is active and valid (TTL > 0)
+        rect rgb(235, 255, 235)
+            Note over API, Bank: Success: Seat hold valid (Initialize External Checkout Session)
+            Svc->>+Bank: Create payment session (orderId: ticketId, amount: 45000 коп, callbackUrl)
+            Bank-->>-Svc: Return payment checkout session (paymentUrl, invoiceId: "inv_123")
+
+            Svc-->>API: Return checkout session DTO (paymentUrl, invoiceId)
+            API-->>UI: 200 OK (paymentUrl: "https://pay.bank.ua/invoice/xyz")
+            UI-->>P: Redirect to secure payment gateway page (LiqPay 3D-Secure)
+            Note over P, Bank: Session initialized. Passenger redirected to 3D-Secure provider.
+        end
+    else Seat hold has expired (TTL <= 0 or status != HELD)
+        rect rgb(255, 235, 235)
+            Note over API, DB: Failure: 10-minute hold window elapsed before checkout
+            Svc->>+DB: Update ticket status to EXPIRED (ticketId, status: EXPIRED)
+            DB-->>-Svc: Record updated (Seat released back to inventory)
+
+            Svc-->>API: Error: HoldExpiredException
+            API-->>UI: 410 Gone (Reservation expired)
+            UI-->>P: Friendly alert: "Your 10-minute hold has expired. Please reselect your seat."
+            Note over P, DB: Hold timed out. Inventory released, passenger redirected back to seat selection.
+        end
+    end
+
+    deactivate Svc
+    deactivate API
+    deactivate UI
