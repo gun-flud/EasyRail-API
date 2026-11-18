@@ -1,4 +1,4 @@
-# Специфікація динаміки взаємодії: Use Case «Купівля залізничного квитка» 
+﻿# Специфікація динаміки взаємодії: Use Case «Купівля залізничного квитка» 
 
 ---
 
@@ -39,26 +39,28 @@
 
 ---
 
-## 3. Сценарій 1: Запит схеми вагона та розрахунок вільних місць (`UC-04`)
+## 3. Сценарій 1: Запит схеми вагона та розрахунок вільних місць (UC-04)
 
 ### 3.1. Опис та передумови (Preconditions)
-* **Прецедент:** `UC-04: Вікно вибору вагона, кількості місць та розташування`.
-* **Передумови:** Пасажир обрав рейс (`tripId`), вказав станцію посадки (станція 1) та станцію висадки (станція 4).
-* **Суть сценарію:** Реалізація **ADR 002 (Lazy Evaluation місць)**. Система не зберігає статичний інвентар фізичних крісел на кожен відрізок колії, а вираховує вільні місця на льоту шляхом віднімання зайнятих сегментів (`ticket_segment` у статусах `HELD` або `PAID`, для яких $\max(from_1, from_2) < \min(to_1, to_2)$) від загального шаблону вагона (`seat_templates`).
+* **Прецедент:** UC-04: Вікно вибору вагона, кількості місць та розташування.
+* **Передумови:** Пасажир обрав рейс (	ripId), вказав станцію посадки (станція 1) та станцію висадки (станція 4).
+* **Суть сценарію:** Реалізація **ADR 002 (Lazy Evaluation місць)**. Система не зберігає статичний інвентар фізичних крісел на кожен відрізок колії, а вираховує вільні місця на льоту шляхом віднімання зайнятих сегментів (	icket_segment у статусах HELD або PAID, для яких max(from_1, from_2) < min(to_1, to_2)) від загального шаблону вагона (seat_templates). Процес спроєктовано як цикл перегляду вагонів (loop Carriage Browsing and Seat Inspection) із виходом при знаходженні вагона з вільними місцями (reak) або повторним переглядом іншого вагона при заповненості (opt [continue]).
 
 ### 3.2. Покроковий перебіг взаємодії
-1. Пасажир обирає конкретний вагон (`carriageId`).
-2. `Web Client` надсилає запит `GET /api/v1/trips/{tripId}/carriages/{cId}/seats?from=1&to=4`.
-3. `Fastify API Gateway` делегує розрахунок у `Booking Service`.
-4. `Booking Service` виконує запит до `PostgreSQL`: вибірка фізичних номерів із `seat_templates` за винятком зайнятих інтервалів із `ticket_segment`.
-5. **Комбінований фрагмент `alt` (Наявність місць):**
-   * **Гілка успіху (`Available seats exist`):** Сервіс повертає масив вільних номерів; клієнт отримує `200 OK` та рендерить інтерактивну карту вагона із зазначенням цін.
-   * **Гілка відсутності (`All seats occupied` — Sold Out):** Якщо на запитаному інтервалі немає жодного безперервно вільного крісла, сервер повертає `200 OK` із порожнім масивом та маркером `soldOut: true`. Клієнт показує сповіщення про відсутність місць без падіння з помилкою 500/404.
+1. **Ітеративний цикл вибору вагона (loop Carriage Browsing and Seat Inspection):**
+   * Пасажир обирає рейс та конкретний вагон (	ripId, carriageId, stations: [1..4]).
+   * Web Client надсилає запит на мапу місць: GET /api/v1/trips/{tripId}/carriages/{carriageId}/seats?from=1&to=4.
+   * Fastify API Gateway делегує розрахунок у Booking Service.
+   * Booking Service виконує розрахунок за шаблоном вагона та зайнятими відрізками з БД (ADR 002).
+   * **Гілка успіху (reak [break] Success: Seats available, proceed to seat selection):**  
+     Якщо на запитаному маршруті є вільні місця, сервіс повертає мапу доступності (vailableSeats: [1..13, 15..36], price: 45000 коп), API віддає 200 OK, клієнт рендерить схему вагона з підсвіткою вільних місць. Спрацьовує reak: пасажир знайшов потрібний вагон, цикл огляду вагонів успішно завершується і процес переходить до вибору місця.
+   * **Гілка повторної спроби (opt [continue] Retry: Carriage full, inspect another carriage):**  
+     Якщо всі місця на запитаному інтервалі зайняті (isSoldOut: true), API повертає 200 OK з порожнім інвентарем, клієнт показує дружнє попередження: *"У цьому вагоні немає вільних місць. Будь ласка, оберіть інший вагон"*. Цикл огляду продовжується (continue), дозволяючи пасажиру обрати інший вагон для перевірки.
 
 ### 3.3. Діаграма послідовності (Sequence Diagram)
-*(Файл артефакту: [`diagrams/model_1.mmd`](diagrams/model_1.mmd))*
+*(Файл артефакту: [diagrams/model_1.mmd](diagrams/model_1.mmd))*
 
-```mermaid
+`mermaid
 ---
 config:
   theme: redux-color
@@ -72,71 +74,82 @@ sequenceDiagram
     participant DB as PostgreSQL Database
 
     %% =============================================================
-    %% UC-04: View Train Carriage and Available Seats (Lazy Evaluation)
+    %% UC-01..02: View Carriage and Available Seats (Lazy Evaluation)
     %% =============================================================
-    P->>+UI: Select trip and carriage
-    UI->>+API: Request seat map (tripId, carriageId, stations [1..4])
-    API->>+Svc: Calculate available seats for carriage on route segment [1..4]
-    Svc->>+DB: Query template seats & subtract occupied segments (ADR 002)
-    DB-->>-Svc: Return physical seats and list of occupied intervals
+    loop Carriage Browsing and Seat Inspection
+        P->>+UI: Select trip and carriage (tripId, carriageId, stations: [1..4])
+        UI->>+API: Request seat map (tripId, carriageId, stations: [1..4])
+        API->>+Svc: Get available seats layout (tripId, carriageId, fromOrder: 1, toOrder: 4)
 
-    alt Available seats exist on interval [1..4]
+        Svc->>+DB: Query physical seats and subtract occupied segments (ADR 002)
+        DB-->>-Svc: Return physical seat template and occupied intervals
+
         rect rgb(235, 255, 235)
-        Note over API, DB: Success: Carriage has free seats for requested stations
-        Svc-->>API: Return available seat map (seats)
-        API-->>UI: Return 200 OK (Renderable seat map with pricing)
-        UI-->>P: Render interactive carriage schema (seats)
+        break [break] Success: Seats available, proceed to seat selection
+            Note over API, DB: Success: Available seats calculated dynamically (Lazy Evaluation - ADR 002)
+            Svc-->>API: Return seat availability map (availableSeats: [1..13, 15..36], price: 45000 коп)
+            API-->>UI: 200 OK (Interactive carriage schema with seat #14 free)
+            UI-->>P: Render interactive seat layout (highlight seat #14 as free)
+            Note over P, UI: [break] Suitable carriage found. Exit loop and proceed to hold reservation.
         end
-    else All seats occupied on interval [1..4]
+        end
+
         rect rgb(255, 235, 235)
-        Note over API, DB: Sold Out: No consecutive free segments found
-        Svc-->>API: Return sold-out status (no available seats on requested interval)
-        API-->>UI: Return 200 OK (Carriage marked as fully booked)
-        UI-->>P: Show notification: "No available seats in this carriage for selected route"
+        opt [continue] Retry: Carriage full, inspect another carriage
+            Note over API, DB: Failure: All seats reserved or purchased for interval [1..4)
+            Svc-->>API: Return empty inventory status (availableSeats: [], isSoldOut: true)
+            API-->>UI: 200 OK (Empty seat availability response)
+            UI-->>P: Friendly alert: "No available seats in this carriage. Please pick another carriage."
+            Note over P, UI: [continue] Loop iterates: Passenger selects another carriage to inspect
+        end
         end
     end
 
     deactivate Svc
     deactivate API
     deactivate UI
-```
+`
 
 ### 3.4. Постумови (Postconditions)
 * Клієнт відображає актуальний стан вільних місць з урахуванням діючих 10-хвилинних холдів інших клієнтів.
 
 ---
 
-## 4. Сценарій 2: Бронювання місця (Холд на 10 хв) із циклом вибору (`UC-05, UC-06, UC-07`)
+## 4. Сценарій 2: Бронювання місця (Холд на 10 хв) із циклом вибору (UC-05, UC-06, UC-07)
 
 ### 4.1. Опис та передумови (Preconditions)
-* **Прецеденти:** `UC-05: Бронювання місця (Холд 10 хв)`, `UC-06: Перевірка перетину інтервалів`, `UC-07: Перевірка ліміту 1 активного холда`.
+* **Прецеденти:** UC-05: Бронювання місця (Холд 10 хв), UC-06: Перевірка перетину інтервалів, UC-07: Перевірка ліміту 1 активного холда.
 * **Передумови:** Пасажир авторизований, переглядає інтерактивну карту вагона.
-* **Суть сценарію:** Реалізація **ADR 001** (монотонний порядок зупинок), **ADR 006** (стан `HELD`), **ADR 007** (неблокуюче блокування рядків `SKIP LOCKED`) та **ADR 008** (ціна в копійках). Сценарій спроектовано як продуктовий цикл (`loop`), у якому пасажир обирає місце і, у разі конфлікту гонки запитів, не викидається з форми, а повторює вибір для іншого місця.
+* **Суть сценарію:** Реалізація **ADR 001** (монотонний порядок зупинок), **ADR 006** (стан HELD), **ADR 007** (неблокуюче блокування рядків SKIP LOCKED) та **ADR 008** (ціна в копійках). Сценарій спроєктовано як продуктовий цикл (loop), у якому пасажир обирає місце і, у разі конфлікту гонки запитів, не викидається з форми, а оновлює мапу вагона і обирає інше крісло.
 
 ### 4.2. Покроковий перебіг взаємодії
-1. Пасажир клікає на місце №14.
-2. `Web Client` надсилає `POST /api/v1/trips/{tripId}/holds` із параметрами місця та станційного інтервалу `[1..4]`.
-3. `Booking Service` відкриває транзакцію (`BEGIN`) і виконує атомарну перевірку ліміту активних холдів користувача (`count < 1`).
-4. **Гілка відмови 1 (`break [Stop: User already has an active hold]`):**
-   * Якщо у користувача вже є активний холд $\ge 1$, транзакція скасовується (`ROLLBACK`), сервер повертає `409 Conflict`.
-   * Спрацьовує оператор `break`: цикл припиняється, пасажир отримує сповіщення про необхідність завершити або скасувати попередню бронь.
-5. **Гілка ліміту в нормі (`count == 0`):**
-   * Сервіс перевіряє наявність перетину інтервалів через неблокуючий селектор:  
-     `SELECT id FROM ticket_segment WHERE seat=14 AND status IN ('HELD','PAID') AND max(from, $from) < min(to, $to) FOR UPDATE SKIP LOCKED`.
-   * **Підгілка конфлікту (`opt [continue] Retry: Seat taken`):**
-     * Якщо місце щойно зарезервував інший клієнт (гонка запитів / Race condition), сервіс робить `ROLLBACK`, API повертає `409 Conflict (Seat already reserved)`.
-     * Клієнт автоматично запитує оновлену карту місць (`200 OK`), показує ввічливий тост: *«Вибачте, це місце щойно забронювали! Карта оновлена, оберіть інше»* і через оператор `continue` повертається на початок циклу.
-   * **Підгілка успіху (`break [Success: Seat is held]`):**
-     * Місце вільне $\to$ виконується вставка запису:  
-       `INSERT INTO ticket_segment (status='HELD', ttl=600s, price=45000 коп, hold_expires_at=NOW()+10m)`.
-     * База повертає згенерований `ticketId` (`UUIDv7`) та час закінчення дії холда.
-     * Транзакція фіксується (`COMMIT`), API повертає `201 Created (holdId, countdown: 600s)`.
-     * Спрацьовує `break`: цикл завершується, клієнт запускає 10-хвилинний таймер та відкриває форму введення даних пасажира.
+1. **Продуктовий цикл вибору місця (loop Seat Selection and Hold Process):**
+   * Пасажир обирає місце №14.
+   * Web Client надсилає запит POST /api/v1/trips/{tripId}/holds із параметрами місця та інтервалу [1..4].
+   * Booking Service відкриває транзакцію (BEGIN) і виконує атомарну перевірку кількості активних холдів користувача (count < 1).
+2. **Фатальна гілка перевірки ліміту (reak [break] Stop: User already has an active hold (count >= 1)):**
+   * Якщо у користувача вже є активний холд (count >= 1), транзакція скасовується (ROLLBACK), сервіс повертає 409 Conflict (Hold limit exceeded: max 1 active hold).
+   * Клієнт показує попередження: *"У вас уже є активна бронь. Будь ласка, завершіть або скасуйте її"*.
+   * Спрацьовує reak: цикл припиняється, пасажир має розібратися з попереднім холдом.
+3. **Гілка відсутності перевищення ліміту (count == 0):**
+   * Сервіс блокує місце №14 неблокуючим селектором з перевіркою перетину зупинок:  
+     SELECT id FROM ticket_segment WHERE seat=14 AND status IN ('HELD','PAID') AND max(from, ) < min(to, ) FOR UPDATE SKIP LOCKED.
+4. **Гілка повторної спроби при конфлікті (opt [continue] Retry: Seat already taken by another user (Race condition)):**
+   * Якщо місце щойно зайняв інший клієнт (гонка запитів / Race condition), сервіс виконує ROLLBACK, API повертає 409 Conflict (Seat already reserved).
+   * Клієнт автоматично запитує свіжу схему вагона (200 OK), показує ввічливе сповіщення: *"Вибачте, це місце щойно забронювали! Мапу оновлено, будь ласка, оберіть інше"*.
+   * Через оператор continue цикл повторюється для вибору іншого доступного місця.
+5. **Гілка успішного створення холду (reak [break] Success: Seat is held, exit loop):**
+   * Якщо місце вільне на запитаному інтервалі, сервіс створює запис у БД:  
+     INSERT INTO ticket_segment (status='HELD', ttl=600s, price=45000 коп, hold_expires_at=NOW()+10m).
+   * База повертає згенерований 	icketId (UUIDv7) та час закінчення дії холда.
+   * Транзакція фіксується (COMMIT), API повертає 201 Created (holdId: UUIDv7, countdown: 600s).
+   * Клієнт запускає 10-хвилинний таймер зворотного відліку та відкриває форму введення даних пасажира.
+   * Спрацьовує reak: успішний вихід із циклу та перехід до наступного сценарію.
 
 ### 4.3. Діаграма послідовності (Sequence Diagram)
-*(Файл артефакту: [`diagrams/model_2.mmd`](diagrams/model_2.mmd))*
+*(Файл артефакту: [diagrams/model_2.mmd](diagrams/model_2.mmd))*
 
-```mermaid
+`mermaid
 ---
 config:
   theme: redux-color
@@ -163,66 +176,59 @@ sequenceDiagram
         Svc->>+DB: Check active holds count for user (userId, status: HELD)
         DB-->>-Svc: Return active count (count: 0)
 
-        alt Active hold limit reached (count >= 1)
-            rect rgb(255, 235, 235)
-            break [break] Stop: User already has an active hold
-                Svc->>+DB: Rollback transaction (ROLLBACK)
-                DB-->>-Svc: Transaction cancelled (OK)
-                Svc-->>API: Hold limit reached error (HoldLimitExceeded)
-                API-->>UI: 409 Conflict (Hold limit exceeded: max 1 active hold)
-                UI-->>P: Friendly alert: "You already have an active hold. Please complete or cancel it first."
-                Note over P, DB: [break] Fatal limit reached. Terminate loop, passenger must clear prior hold.
-            end
-            end
-        else Active hold limit not exceeded (count == 0)
-            rect rgb(235, 255, 235)
-            Note over API, DB: Success: User doesn't have an active reservation
-            Svc->>+DB: Lock seat #14 and check station overlap (seat: 14, max(from) < min(to), SKIP LOCKED)
-            DB-->>-Svc: Return conflict status (conflicts: 0)
-
-            alt Seat already taken by another user (Race condition)
-                rect rgb(255, 235, 235)
-                opt [continue] Retry: Seat taken, refresh map and select another
-                    Note over API, DB: Conflict: Seat was just reserved by someone else
-                    Svc->>+DB: Rollback transaction (ROLLBACK)
-                    DB-->>-Svc: Transaction cancelled (OK)
-                    Svc-->>API: Seat already taken error (SeatConflictError)
-                    API-->>UI: 409 Conflict (Seat already reserved)
-                    UI->>+API: Fetch updated available seats (tripId, carriageId, stations: [1..4])
-                    API-->>-UI: 200 OK (Updated seat map)
-                    UI-->>P: Friendly alert: "Sorry, this seat was just reserved! Map updated, please pick another."
-                    Note over P, UI: [continue] Loop iterates: Passenger selects another available seat
-                end
-                end
-            else Seat is free on this interval
-                rect rgb(235, 255, 235)
-                break [break] Success: Seat is held, exit loop
-                    Svc->>+DB: Create hold record (tripId, seat: 14, status: HELD, ttl: 600s, price: 45000 коп)
-                    DB-->>-Svc: Return ticket ID and expiration time (ticketId: UUIDv7, expiresAt: NOW()+10m)
-                    Svc->>+DB: Commit transaction (COMMIT)
-                    DB-->>-Svc: Transaction committed (OK)
-
-                    Svc-->>API: Hold confirmed (ticketId: UUIDv7, countdown: 600s)
-                    API-->>UI: 201 Created (holdId: UUIDv7, countdown: 600s)
-                    UI-->>P: Start 10-minute countdown (10:00) and show passenger form
-                    Note over P, UI: [break] Successfully held! Loop terminates, proceed to passenger data entry.
-                end
-                end
-            end
-            end
+        rect rgb(255, 235, 235)
+        break [break] Stop: User already has an active hold (count >= 1)
+            Svc->>+DB: Rollback transaction (ROLLBACK)
+            DB-->>-Svc: Transaction cancelled (OK)
+            Svc-->>API: Hold limit reached error (HoldLimitExceeded)
+            API-->>UI: 409 Conflict (Hold limit exceeded: max 1 active hold)
+            UI-->>P: Friendly alert: "You already have an active hold. Please complete or cancel it first."
+            Note over P, DB: [break] Fatal limit reached. Terminate loop, passenger must clear prior hold.
+        end
         end
 
-        deactivate Svc
-        deactivate API
-        deactivate UI
+        Note over API, DB: Active hold limit not exceeded (count == 0): proceed to seat reservation
+        Svc->>+DB: Lock seat #14 and check station overlap (seat: 14, max(from) < min(to), SKIP LOCKED)
+        DB-->>-Svc: Return conflict status (conflicts: 0)
+
+        rect rgb(255, 235, 235)
+        opt [continue] Retry: Seat already taken by another user (Race condition)
+            Note over API, DB: Conflict: Seat was just reserved by someone else
+            Svc->>+DB: Rollback transaction (ROLLBACK)
+            DB-->>-Svc: Transaction cancelled (OK)
+            Svc-->>API: Seat already taken error (SeatConflictError)
+            API-->>UI: 409 Conflict (Seat already reserved)
+            UI->>+API: Fetch updated available seats (tripId, carriageId, stations: [1..4])
+            API-->>-UI: 200 OK (Updated seat map)
+            UI-->>P: Friendly alert: "Sorry, this seat was just reserved! Map updated, please pick another."
+            Note over P, UI: [continue] Loop iterates: Passenger selects another available seat
+        end
+        end
+
+        rect rgb(235, 255, 235)
+        break [break] Success: Seat is held, exit loop
+            Svc->>+DB: Create hold record (tripId, seat: 14, status: HELD, ttl: 600s, price: 45000 коп)
+            DB-->>-Svc: Return ticket ID and expiration time (ticketId: UUIDv7, expiresAt: NOW()+10m)
+            Svc->>+DB: Commit transaction (COMMIT)
+            DB-->>-Svc: Transaction committed (OK)
+
+            Svc-->>API: Hold confirmed (ticketId: UUIDv7, countdown: 600s)
+            API-->>UI: 201 Created (holdId: UUIDv7, countdown: 600s)
+            UI-->>P: Start 10-minute countdown (10:00) and show passenger form
+            Note over P, UI: [break] Successfully held! Loop terminates, proceed to passenger data entry.
+        end
+        end
     end
-```
+
+    deactivate Svc
+    deactivate API
+    deactivate UI
+`
 
 ### 4.4. Постумови (Postconditions)
-* У системі створено запис `ticket_segment` у статусі `HELD` на 600 секунд. Інші пасажири бачать це місце як зайняте на запитаному інтервалі зупинок.
+* У системі створено запис 	icket_segment у статусі HELD на 600 секунд. Інші пасажири бачать це місце як зайняте на запитаному інтервалі зупинок.
 
 ---
-
 ## 5. Сценарій 3: Введення даних пасажира, збереження попутника та чекаут (`UC-10, 11, 12, 08`)
 
 ### 5.1. Опис та передумови (Preconditions)
