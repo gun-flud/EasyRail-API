@@ -30,22 +30,23 @@ export function createPool(connectionString: string, logger?: DbLogger): Pool {
 export async function checkDbConnection(pool: Pool, timeoutMs = 2_000): Promise<void> {
 	const client = await pool.connect();
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	let shouldDestroy = false;
 
 	try {
 		const query = client.query('SELECT 1');
-		query.catch(() => {}); // якщо таймер спрацює раніше, ця фонова помилка не ввалить Node
+		query.catch(() => {});
 
 		const timeout = new Promise<never>((_resolve, reject) => {
 			timer = setTimeout(() => reject(new Error('DB readiness timeout')), timeoutMs);
 		});
 
 		await Promise.race([query, timeout]);
-		client.release();
 	} catch (err) {
-		client.release(true);
+		shouldDestroy = true;
 		throw err;
 	} finally {
 		clearTimeout(timer);
+		client.release(shouldDestroy);
 	}
 }
 
