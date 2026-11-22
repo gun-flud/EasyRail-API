@@ -4,13 +4,25 @@ import { env } from './config/env.js';
 import { loggerOptions } from './config/logger.js';
 import { createPool } from './db/pool.js';
 
-const pool = env.DATABASE_URL ? createPool(env.DATABASE_URL) : undefined;
+import type { DbLogger } from './db/pool.js';
+
+const poolLogger: { current: DbLogger | undefined } = { current: undefined };
+
+const pool = env.DATABASE_URL
+	? createPool(env.DATABASE_URL, {
+			error(err, msg) {
+				poolLogger.current?.error(err, msg);
+			},
+		})
+	: undefined;
 
 const app = buildApp({
 	logger: loggerOptions(),
 	pool,
 	closePoolOnClose: true,
 });
+
+poolLogger.current = app.log;
 
 async function shutdown(signal: string) {
 	app.log.info(`${signal} received, shutting down`);

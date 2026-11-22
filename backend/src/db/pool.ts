@@ -8,7 +8,11 @@ export interface QueryExecutor {
 	): Promise<QueryResult<T>>;
 }
 
-export function createPool(connectionString: string): Pool {
+export interface DbLogger {
+	error(err: unknown, message: string): void;
+}
+
+export function createPool(connectionString: string, logger?: DbLogger): Pool {
 	const pool = new Pool({
 		connectionString,
 		max: 10,
@@ -17,14 +21,32 @@ export function createPool(connectionString: string): Pool {
 	});
 
 	pool.on('error', (err: Error) => {
-		console.error('Unexpected PostgreSQL pool error:', err);
+		logger?.error(err, 'Unexpected PostgreSQL pool error');
 	});
 
 	return pool;
 }
 
-export async function checkDbConnection(executor: QueryExecutor): Promise<void> {
-	await executor.query('SELECT 1');
+export async function checkDbConnection(pool: Pool, timeoutMs = 2_000): Promise<void> {
+	const client = await pool.connect();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+
+	try {
+		const query = client.query('SELECT 1');
+		query.catch(() => {}); // якщо таймер спрацює раніше, ця фонова помилка не ввалить Node
+
+		const timeout = new Promise<never>((_resolve, reject) => {
+			timer = setTimeout(() => reject(new Error('DB readiness timeout')), timeoutMs);
+		});
+
+		await Promise.race([query, timeout]);
+		client.release();
+	} catch (err) {
+		client.release(true);
+		throw err;
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 export type { Pool, PoolClient, QueryResult, QueryResultRow };

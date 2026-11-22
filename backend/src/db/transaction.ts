@@ -1,8 +1,10 @@
 import type { Pool, PoolClient } from 'pg';
+import type { DbLogger } from './pool.js';
 
 export async function withTransaction<T>(
 	pool: Pool,
 	fn: (client: PoolClient) => Promise<T>,
+	logger?: DbLogger,
 ): Promise<T> {
 	const client = await pool.connect();
 	try {
@@ -14,7 +16,7 @@ export async function withTransaction<T>(
 		try {
 			await client.query('ROLLBACK');
 		} catch (rollbackError) {
-			console.error('Failed to rollback PostgreSQL transaction:', rollbackError);
+			logger?.error(rollbackError, 'Failed to rollback PostgreSQL transaction');
 		}
 		throw error;
 	} finally {

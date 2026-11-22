@@ -1,3 +1,4 @@
+import * as z from 'zod';
 import Fastify from 'fastify';
 import type { FastifyServerOptions } from 'fastify';
 import {
@@ -101,18 +102,24 @@ export function buildApp(options: BuildAppOptions = {}) {
 		return { status: 'ok' };
 	});
 
+	const typedApp = app.withTypeProvider<ZodTypeProvider>();
+
 	if (options.pool) {
 		const pool = options.pool;
-		app.get('/health/ready', async (_request, reply) => {
-			try {
-				await checkDbConnection(pool);
-				return { status: 'ok', db: 'healthy' };
-			} catch (err) {
-				app.log.error(err, 'Database readiness check failed');
-				return reply.status(503).send({ status: 'error', db: 'unhealthy' });
-			}
-		});
+		typedApp.get(
+			'/health/ready',
+			{ schema: { querystring: z.object({}) } },
+			async (_request, reply) => {
+				try {
+					await checkDbConnection(pool);
+					return { status: 'ok', db: 'healthy' };
+				} catch (err) {
+					typedApp.log.error(err, 'Database readiness check failed');
+					return reply.status(503).send({ status: 'error', db: 'unhealthy' });
+				}
+			},
+		);
 	}
 
-	return app.withTypeProvider<ZodTypeProvider>();
+	return typedApp;
 }

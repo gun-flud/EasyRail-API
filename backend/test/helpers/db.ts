@@ -57,23 +57,28 @@ export async function setupTestDb(): Promise<Pool> {
   await ensureDatabaseExists(connectionString, dbName);
 
   const pool = createPool(connectionString);
+  
+  try{
+    await pool.query('DROP SCHEMA IF EXISTS public CASCADE');
+    await pool.query('CREATE SCHEMA public');
 
-  await pool.query('DROP SCHEMA IF EXISTS public CASCADE');
-  await pool.query('CREATE SCHEMA public');
+    const entries = await fs.readdir(MIGRATIONS_DIR);
+    const migrationFiles = entries
+      .filter((file) => file.endsWith('.sql') && file !== '02_seed.sql')
+      .sort();
 
-  const entries = await fs.readdir(MIGRATIONS_DIR);
-  const migrationFiles = entries
-    .filter((file) => file.endsWith('.sql') && file !== '02_seed.sql')
-    .sort();
-
-  for (const file of migrationFiles) {
-    const sql = await fs.readFile(path.join(MIGRATIONS_DIR, file), 'utf8');
-    if (sql.trim().length > 0) {
-      await pool.query(sql);
+    for (const file of migrationFiles) {
+      const sql = await fs.readFile(path.join(MIGRATIONS_DIR, file), 'utf8');
+      if (sql.trim().length > 0) {
+        await pool.query(sql);
+      }
     }
-  }
 
-  return pool;
+    return pool;
+  } catch(error) {
+    await pool.end();
+    throw error;
+  }
 }
 
 export async function truncateAllTables(pool: Pool): Promise<void> {
