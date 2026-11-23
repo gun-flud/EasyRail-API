@@ -21,6 +21,12 @@ export function createPool(connectionString: string, logger?: Logger): Pool {
 		logger?.error(err, 'Unexpected PostgreSQL pool error');
 	});
 
+	pool.on('connect', (client: PoolClient) => {
+		client.on('error', (err: Error) => {
+			logger?.error(err, 'PostgreSQL client error');
+		});
+	});
+
 	return pool;
 }
 

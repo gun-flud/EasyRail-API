@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import '../../src/config/env.js';
 import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
