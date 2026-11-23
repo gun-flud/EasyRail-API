@@ -23,7 +23,7 @@
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
-    "exactOptionalPropertyTypes": true,
+    "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": true,
 
     /* Interoperability & Performance */

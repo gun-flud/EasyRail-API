@@ -10,7 +10,7 @@ services:
         ports:
             - "${DB_HOST:-127.0.0.1}:${DB_PORT:-6543}:5432"
         volumes:
-            - pgdata:/var/lib/postgresql
+            - pgdata:/var/lib/postgresql/data
             - ./migrations:/docker-entrypoint-initdb.d:ro
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -43,7 +43,7 @@ services:
             dockerfile: Dockerfile
         container_name: easyrail_backend
         env_file:
-            - ./backend/.env
+            - ./.env
         ports:
             - "${BACKEND_PORT:-8080}:${BACKEND_PORT:-8080}"
         restart: unless-stopped
@@ -55,6 +55,7 @@ services:
             PORT: ${BACKEND_PORT:-8080}
             HOST: 0.0.0.0
             DATABASE_URL: postgresql://${DB_USER:?DB_USER is required}:${DB_PASSWORD:?DB_PASSWORD is required}@postgres:5432/${DB_NAME:?DB_NAME is required}
+            TEST_DATABASE_URL: postgresql://${DB_USER:?DB_USER is required}:${DB_PASSWORD:?DB_PASSWORD is required}@postgres:5432/${DB_NAME:?DB_NAME is required}_test
             # JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_easyrail}
         networks:
             - easyrail_network

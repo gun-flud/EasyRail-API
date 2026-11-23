@@ -1,3 +1,4 @@
+import type { Logger } from '../config/logger.js';
 import { Pool } from 'pg';
 import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 
@@ -8,11 +9,7 @@ export interface QueryExecutor {
 	): Promise<QueryResult<T>>;
 }
 
-export interface DbLogger {
-	error(err: unknown, message: string): void;
-}
-
-export function createPool(connectionString: string, logger?: DbLogger): Pool {
+export function createPool(connectionString: string, logger?: Logger): Pool {
 	const pool = new Pool({
 		connectionString,
 		max: 10,

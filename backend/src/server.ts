@@ -1,28 +1,16 @@
 import 'dotenv/config';
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
-import { loggerOptions } from './config/logger.js';
+import { logger } from './config/logger.js';
 import { createPool } from './db/pool.js';
 
-import type { DbLogger } from './db/pool.js';
-
-const poolLogger: { current: DbLogger | undefined } = { current: undefined };
-
-const pool = env.DATABASE_URL
-	? createPool(env.DATABASE_URL, {
-			error(err, msg) {
-				poolLogger.current?.error(err, msg);
-			},
-		})
-	: undefined;
+const pool = env.DATABASE_URL ? createPool(env.DATABASE_URL, logger) : undefined;
 
 const app = buildApp({
-	logger: loggerOptions(),
+	logger,
 	pool,
 	closePoolOnClose: true,
 });
-
-poolLogger.current = app.log;
 
 async function shutdown(signal: string) {
 	app.log.info(`${signal} received, shutting down`);
