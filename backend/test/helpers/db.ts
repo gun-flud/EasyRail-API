@@ -1,14 +1,14 @@
-import 'dotenv/config';
+import { env } from '../../src/config/env.js';
 import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createPool } from '../../src/db/pool.js';
-import type { Pool } from '../../src/db/pool.js';
+import type { Pool } from 'pg';
 
 const MIGRATIONS_DIR = fileURLToPath(new URL('../../../migrations', import.meta.url));
 
 function getTestDatabaseUrl(): string {
-  const url = process.env.TEST_DATABASE_URL;
+  const url = env.TEST_DATABASE_URL;
   if (!url) {
     throw new Error(
       'TEST_DATABASE_URL is not set. Add it to backend/.env or pass it in the environment.',

@@ -1,32 +1,26 @@
 import Fastify from 'fastify';
-import type { FastifyBaseLogger } from 'fastify';
-import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+import type { Logger } from './config/logger.js';
+import type { Pool } from 'pg';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { checkDbConnection, type Pool } from './db/pool.js';
+import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+import { checkDbConnection } from './db/pool.js';
 import { errorHandler } from './shared/errors/errorHandler.js';
+import { logger } from './config/logger.js';
 
 export interface BuildAppOptions {
-	logger?: FastifyBaseLogger | boolean;
+	logger?: Logger | boolean;
 	pool?: Pool;
 	closePoolOnClose?: boolean;
 }
 
 export function buildApp(options: BuildAppOptions = {}) {
-	const app = Fastify({
-		logger: options.logger ?? false,
-	}).withTypeProvider<ZodTypeProvider>();
+	const app = Fastify({ loggerInstance: logger }).withTypeProvider<ZodTypeProvider>();
 
 	app.setValidatorCompiler(validatorCompiler);
 	app.setSerializerCompiler(serializerCompiler);
 
 	app.setErrorHandler(errorHandler);
 
-	if (options.pool && options.closePoolOnClose) {
-		const pool = options.pool;
-		app.addHook('onClose', async () => {
-			await pool.end();
-		});
-	}
 
 	app.get('/health', () => {
 		return { status: 'ok' };
@@ -34,6 +28,7 @@ export function buildApp(options: BuildAppOptions = {}) {
 
 	if (options.pool) {
 		const pool = options.pool;
+
 		app.get('/health/ready', async (_request, reply) => {
 			try {
 				await checkDbConnection(pool);

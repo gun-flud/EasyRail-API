@@ -4,7 +4,7 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { createPool } from './db/pool.js';
 
-const pool = env.DATABASE_URL ? createPool(env.DATABASE_URL, logger) : undefined;
+const pool = env.DATABASE_URL ? createPool(env.DATABASE_URL) : undefined;
 
 const app = buildApp({
 	logger,

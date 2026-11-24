@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { isPostgresError } from '../../src/db/errors.js';
-import type { Pool } from '../../src/db/pool.js';
+import type { Pool } from 'pg';
 import { setupTestDb, truncateAllTables } from '../helpers/db.js';
 
 async function expectPgErrorCode(fn: () => Promise<unknown>, expectedCode: string): Promise<void> {
