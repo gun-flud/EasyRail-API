@@ -1,15 +1,9 @@
 import 'dotenv/config';
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
-import { logger } from './config/logger.js';
-import { createPool } from './db/pool.js';
-
-const pool = env.DATABASE_URL ? createPool(env.DATABASE_URL) : undefined;
 
 const app = buildApp({
-	logger,
-	pool,
-	closePoolOnClose: true,
+	databaseUrl: env.DATABASE_URL
 });
 
 async function shutdown(signal: string) {
@@ -24,12 +18,8 @@ async function shutdown(signal: string) {
 	}
 }
 
-process.on('SIGTERM', () => {
-	void shutdown('SIGTERM');
-});
-process.on('SIGINT', () => {
-	void shutdown('SIGINT');
-});
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 async function start() {
 	try {

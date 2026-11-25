@@ -9,29 +9,35 @@ declare module 'fastify' {
 	}
 }
 
-interface DbPluginOptions {
-    connectingString: string;
+export interface DbPluginOptions {
+	connectionString?: string;
+	pool?: Pool;
 }
 
-async function DbPlugin (fastify: FastifyInstance, opts: DbPluginOptions): Promise<void> {
-    const pool = createPool(opts.connectingString);
+async function dbPlugin(fastify: FastifyInstance, opts: DbPluginOptions): Promise<void> {
+	
+	const pool = opts.pool ?? (opts.connectionString ? createPool(opts.connectionString) : null);
 
-    pool.on('error', (err: Error) => {
-        fastify.log.error(err, "Postgres pool error");
-    });
+	if (!pool) {
+		throw new Error('dbPlugin requires either "pool" or "connectionString"');
+	}
 
-    try {
-        checkDbConnection(pool);
-    } catch (err) {
-        await pool.end();
-        throw err;
-    }
+	pool.on('error', (err: Error) => {
+		fastify.log.error(err, 'Postgres pool error');
+	});
 
-    fastify.decorate('db', pool);
+	try {
+		await checkDbConnection(pool);
+	} catch (err) {
+		if (!opts.pool) await pool.end();
+		throw err;
+	}
 
-    fastify.addHook('onClose', async () => {
-        await pool.end()
-    });
+	fastify.decorate('db', pool);
+
+	fastify.addHook('onClose', async () => {
+		if (!opts.pool) await pool.end();
+	});
 }
 
-export default fp(DbPlugin, {name: 'db'});
+export default fp(dbPlugin, { name: 'db' });

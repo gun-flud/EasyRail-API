@@ -1,6 +1,6 @@
-// import type { FastifyServerOptions } from 'fastify';
 import { env } from './env.js';
 import { pino } from 'pino';
+import type { FastifyBaseLogger } from 'fastify';
 
 export const logger = pino(
 	env.NODE_ENV === 'development'
@@ -18,4 +18,4 @@ export const logger = pino(
 		: { level: env.LOG_LEVEL },
 );
 
-export type Logger = typeof logger;
+export type Logger = FastifyBaseLogger;
