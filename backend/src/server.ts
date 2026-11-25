@@ -1,10 +1,9 @@
 import 'dotenv/config';
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
-import { loggerOptions } from './config/logger.js';
 
 const app = buildApp({
-	logger: loggerOptions(),
+	databaseUrl: env.DATABASE_URL
 });
 
 async function shutdown(signal: string) {
@@ -19,12 +18,8 @@ async function shutdown(signal: string) {
 	}
 }
 
-process.on('SIGTERM', () => {
-	void shutdown('SIGTERM');
-});
-process.on('SIGINT', () => {
-	void shutdown('SIGINT');
-});
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 async function start() {
 	try {
